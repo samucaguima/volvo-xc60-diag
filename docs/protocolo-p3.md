@@ -17,9 +17,24 @@
 | Endereço de um módulo | envio 0x7xx, resposta 0x7xx + 8 | `ATSHxxx` + `ATCRAyyy` |
 | Controle de fluxo | explícito para mensagens longas | `ATFCSH`, `ATFCSD300000`, `ATFCSM1` |
 
-A rede de média velocidade (MS-CAN, 125 kbps, pinos 3 e 11) ainda não é usada.
-O OBDLink MX+ tem suporte a ela por comandos próprios (STN); isso fica para uma
-próxima versão, depois de confirmar quais módulos ficam nela.
+### Rede de média velocidade (MS-CAN), experimental
+
+Pinos 3 e 11, 125 kbps. Uma medição da Snap-on num XC60 2017 encontrou essa rede
+nesses pinos, e fóruns Volvo dizem o mesmo; não há documento oficial da Volvo
+consultado. Acesso com a opção `--rede ms`, em adaptadores ELM327 com **chave
+HS/MS-CAN** (a chave liga o adaptador aos pinos 3/11):
+
+| Item | Valor | Comando ELM |
+|---|---|---|
+| Protocolo | B (USER1), CAN 11 bits, quadros de 8 bytes, ISO 15765-4 | `ATPB8104` + `ATSPB` |
+| Velocidade | 500 ÷ 4 = 125 kbps | (divisor 04 no `ATPB`) |
+
+`AT PB` vale só para a sessão e não altera a memória do adaptador (datasheet do
+ELM327, parâmetros programáveis 2C e 2D). Adaptadores OBDLink usam comandos
+próprios (STN) para essa rede, ainda não implementados.
+
+O comando `varrer-modulos` procura, nas duas redes, quais endereços respondem à
+presença do testador (`3E 00`, que não altera nada), para confirmar o mapa abaixo.
 
 ## Módulos
 
@@ -30,8 +45,8 @@ próxima versão, depois de confirmar quais módulos ficam nela.
 | TCM (câmbio) | 7E1 | 7E9 | volvoscan | a confirmar |
 | BCM (freios) | 760 | 768 | volvoscan | a confirmar |
 | SRS (airbags) | 772 | 77A | volvoscan | a confirmar |
-| DIM (painel) | 720 | 728 | volvoscan | a confirmar, provável MS-CAN |
-| CCM (clima) | 733 | 73B | volvoscan | a confirmar, provável MS-CAN |
+| DIM (painel) | 720 | 728 | volvoscan | a confirmar, provável MS-CAN (`--rede ms`) |
+| CCM (clima) | 733 | 73B | volvoscan | a confirmar, provável MS-CAN (`--rede ms`) |
 
 O projeto volvoscan tem modo de demonstração e não comprova os endereços no
 carro. Por isso a versão 0.1 trata esses módulos como hipóteses e o comando

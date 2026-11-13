@@ -87,7 +87,29 @@ volvodiag relatorio
 
 O arquivo `relatorio-sessao-N.html` abre em qualquer navegador.
 
-## 5. Descobrir dados do seu motor (opcional)
+## 5. Rede de média velocidade: painel e climatizador (experimental)
+
+Só para adaptadores com **chave HS/MS-CAN**. Com a ignição ligada, mude a chave
+para **MS** e rode:
+
+```powershell
+volvodiag --porta COM3 --rede ms varrer-modulos
+volvodiag --porta COM3 --rede ms modulos
+volvodiag --porta COM3 --rede ms dtc
+```
+
+Volte a chave para **HS** antes de usar os demais comandos. Com a chave na
+posição errada, o adaptador não encontra os módulos (não causa dano).
+
+Para mapear todos os módulos da rede principal também:
+
+```powershell
+volvodiag --porta COM3 varrer-modulos
+```
+
+Envie as duas listas de endereços para completarmos o mapa de módulos.
+
+## 6. Descobrir dados do seu motor (opcional)
 
 Os dados Volvo de temperatura do óleo e de pressão vieram de um P3 a diesel. Para
 ver o que o Drive-E responde (somente leitura, com a ignição ligada):
@@ -108,7 +130,7 @@ painel do carro antes de ser usado.
 | `Não foi possível abrir COMx` | Feche outros programas que usam o adaptador (Torque, FORScan, app OBDLink) e confira a porta com `volvodiag portas` |
 | `Sem resposta do adaptador` | Adaptador desencaixado do carro, adaptador Bluetooth dormindo ou porta errada |
 | `não conseguiu se comunicar com o carro` | Ligue a ignição; confira o encaixe no conector |
-| Módulo "sem resposta" em `modulos` | Pode estar na rede MS-CAN (ainda não suportada) ou o endereço precisa ser confirmado |
+| Módulo "sem resposta" em `modulos` | Pode estar na outra rede (`--rede ms` / chave do adaptador) ou o endereço precisa ser confirmado (`varrer-modulos`) |
 | Ver a conversa com o adaptador | Acrescente `--debug` antes do comando |
 
 Para enviar um log a alguém, use `--debug`, mas **apague o VIN** do texto antes de compartilhar.

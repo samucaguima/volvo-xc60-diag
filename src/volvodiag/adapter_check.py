@@ -42,7 +42,8 @@ CHECKS: list[Check] = [
     Check("ATAR", "voltar ao filtro automático", True),
     Check("ATRV", "ler a tensão da bateria", True, expect="V"),
     Check("ATPPS", "parâmetros programáveis (indício de clone mais completo)", False, expect="ANY"),
-    Check("ATSPB", "protocolo B, 125 kbps (rede MS-CAN, uso futuro)", False),
+    Check("ATPB8104", "configurar 125 kbps para a rede MS-CAN (opção --rede ms)", False),
+    Check("ATSPB", "ativar o protocolo da rede MS-CAN (opção --rede ms)", False),
 ]
 
 

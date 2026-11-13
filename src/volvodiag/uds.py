@@ -77,6 +77,26 @@ class UdsClient:
         """14 FF FF FF. Bloqueado pela trava, a menos que autorizado."""
         self._call(module, b"\x14\xff\xff\xff", timeout=5.0)
 
+    def scan_addresses(
+        self,
+        start: int = 0x700,
+        end: int = 0x7F7,
+        progress: Callable[[int], None] | None = None,
+    ) -> Iterator[int]:
+        """Procura módulos com a presença do testador (3E 00), que não altera nada.
+
+        Supõe a convenção Volvo/ISO de resposta no endereço de envio + 8.
+        """
+        from .modules import Module
+
+        for tx in range(start, end + 1):
+            if tx == 0x7DF:
+                continue
+            if progress:
+                progress(tx)
+            if self.ping(Module(f"0x{tx:03X}", tx, "", "", "")):
+                yield tx
+
     def scan_dids(
         self,
         module: Module,

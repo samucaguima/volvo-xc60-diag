@@ -26,6 +26,11 @@ class SimulatedCar:
             0x726: [bytes([0xA1, 0x2B, 0x15, 0x08])],
             0x7E1: [], 0x760: [], 0x772: [],
         }
+        # Rede MS-CAN (125 kbps, pinos 3/11): painel e climatizador (fictícios)
+        self.ms_dtcs = {
+            0x720: [],
+            0x733: [bytes([0x9C, 0x10, 0x11, 0x08])],
+        }
         self.ecm_pids = {
             0x01, 0x04, 0x05, 0x06, 0x07, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
             0x10, 0x11, 0x1F, 0x21, 0x2F, 0x31, 0x33, 0x42, 0x46,
@@ -109,8 +114,9 @@ class SimulatedCar:
                 out[rx] = b"\x49\x02\x01" + SIM_VIN.encode()
         return out
 
-    def physical(self, tx: int, req: bytes) -> bytes | None:
-        if tx not in self.uds_dtcs:
+    def physical(self, tx: int, req: bytes, network: str = "hs") -> bytes | None:
+        dtcs = self.ms_dtcs if network == "ms" else self.uds_dtcs
+        if tx not in dtcs:
             return None  # módulo ausente ou em outra rede
         sid = req[0]
         if sid == 0x3E:
@@ -121,9 +127,9 @@ class SimulatedCar:
                 return b"\x7f\x22\x31"
             return b"\x62" + req[1:3] + data
         if sid == 0x19 and req[1:2] == b"\x02":
-            return b"\x59\x02\xff" + b"".join(self.uds_dtcs[tx])
+            return b"\x59\x02\xff" + b"".join(dtcs[tx])
         if sid == 0x14:
-            self.uds_dtcs[tx] = []
+            dtcs[tx] = []
             return b"\x54"
         return bytes([0x7F, sid, 0x11])
 
@@ -145,6 +151,8 @@ class SimulatedTransport:
         self.ignition_on = ignition_on
         self.header = 0x7DF
         self.spaces = True
+        self.network = "hs"
+        self._pb_ok = False
         self._out = ""
 
     def write(self, data: bytes) -> None:
@@ -182,6 +190,15 @@ class SimulatedTransport:
                 return "14.1V" if self.ignition_on else "12.5V"
             if cmd == "ATPPS":
                 return "00:FF F  01:FF F  02:FF F  03:32 F"
+            if cmd == "ATSP6":
+                self.network = "hs"
+                return "OK"
+            if cmd.startswith("ATPB"):
+                self._pb_ok = cmd == "ATPB8104"
+                return "OK"
+            if cmd == "ATSPB":
+                self.network = "ms" if self._pb_ok else "ms-errada"
+                return "OK"
             if cmd.startswith("ATSH"):
                 self.header = int(cmd[4:], 16)
                 return "OK"
@@ -197,12 +214,16 @@ class SimulatedTransport:
             return "?"
         if not self.ignition_on:
             return "SEARCHING...\rUNABLE TO CONNECT"
+        if self.network == "ms-errada":
+            return "CAN ERROR"
+        if self.network == "ms" and self.header == 0x7DF:
+            return "NO DATA"  # módulos de emissões não ficam na MS-CAN
         if self.header == 0x7DF:
             resp = self.car.functional(req)
             if not resp:
                 return "NO DATA"
             return "\r".join(self._fmt(rx, p) for rx, p in resp.items())
-        payload = self.car.physical(self.header, req)
+        payload = self.car.physical(self.header, req, self.network)
         if payload is None:
             return "NO DATA"
         return self._fmt(self.header + 8, payload)

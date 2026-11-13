@@ -18,6 +18,14 @@ log = logging.getLogger(__name__)
 
 FUNCTIONAL_HEADER = 0x7DF  # pedido OBD-II para todos os módulos de emissões
 
+# Comandos de protocolo por rede. "ms": protocolo B do ELM327 configurado só
+# para esta sessão (AT PB 81 04 = CAN 11 bits, quadros de 8 bytes, formatação
+# ISO 15765-4, 500/4 = 125 kbps; datasheet ELM327, PP 2C e 2D).
+NETWORKS: dict[str, tuple[str, ...]] = {
+    "hs": ("ATSP6",),
+    "ms": ("ATPB8104", "ATSPB"),
+}
+
 _ERRORS = {
     "?": "o adaptador não reconheceu o comando",
     "CANERROR": "erro no barramento CAN (ignição desligada ou conexão ruim?)",
@@ -44,6 +52,7 @@ class Elm327:
         self.guard = guard or SafetyGuard()
         self._target: tuple[int, int | None] | None = None
         self.version = ""
+        self.network = "hs"
 
     # ------------------------------------------------------------------ AT
     def command(self, cmd: str, timeout: float = 2.0) -> list[str]:
@@ -59,11 +68,19 @@ class Elm327:
                 raise ElmError(f"{cmd}: {_ERRORS[key]}")
         return lines
 
-    def initialize(self) -> str:
-        """Reinicia e configura o adaptador. Devolve a identificação dele."""
+    def initialize(self, network: str = "hs") -> str:
+        """Reinicia e configura o adaptador. Devolve a identificação dele.
+
+        ``network``: "hs" para a CAN de alta velocidade (500 kbps, pinos 6/14)
+        ou "ms" para a de média velocidade (125 kbps, pinos 3/11). A rede "ms"
+        exige um adaptador com chave HS/MS-CAN na posição MS.
+        """
+        if network not in NETWORKS:
+            raise ValueError(f"rede desconhecida: {network}")
         lines = self.command("ATZ", timeout=5.0)
-        for cmd in ("ATE0", "ATL0", "ATS0", "ATH1", "ATAT1", "ATSP6"):
+        for cmd in ("ATE0", "ATL0", "ATS0", "ATH1", "ATAT1", *NETWORKS[network]):
             self.command(cmd)
+        self.network = network
         ident = self.command("ATI")
         self.version = ident[-1] if ident else (lines[-1] if lines else "")
         try:  # adaptadores OBDLink respondem ao STI com o modelo do chip STN

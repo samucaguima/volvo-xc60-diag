@@ -8,9 +8,10 @@ Fontes e grau de confiança:
 * "a confirmar": listado pelo projeto github.com/oleksandrdiadyk-glitch/volvoscan
   (XC70 2008), sem comprovação; confirme com o comando ``modulos``.
 
-Rede: o OBDLink MX+ conversa pela CAN de alta velocidade (pinos 6/14) nesta
-versão. Módulos marcados como "MS-CAN (provável)" podem ficar na rede de
-média velocidade (pinos 3/11), que ainda não é suportada aqui.
+Rede: a maioria dos módulos de diagnóstico fica na CAN de alta velocidade
+(pinos 6/14, opção ``--rede hs``). Os marcados como "MS-CAN (provável)" devem
+ficar na rede de média velocidade (pinos 3/11, 125 kbps), acessível com
+``--rede ms`` e um adaptador com chave HS/MS-CAN na posição MS (experimental).
 """
 
 from __future__ import annotations
@@ -43,6 +44,12 @@ MODULES: dict[str, Module] = {
         Module("CCM", 0x733, "Climatizador", "MS-CAN (provável)", "a confirmar"),
     ]
 }
+
+
+def on_network(network: str) -> list[Module]:
+    """Módulos esperados em cada rede ("hs" ou "ms")."""
+    prefix = "MS" if network == "ms" else "HS"
+    return [m for m in MODULES.values() if m.bus.startswith(prefix)]
 
 
 def get(name: str) -> Module:

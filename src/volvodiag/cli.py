@@ -23,12 +23,17 @@ from .storage import Store
 from .transport import SerialTransport, TcpTransport, Transport, TransportError
 from .uds import NegativeResponse, NoResponse, UdsClient
 
-UDS_DTC_MODULES = ["ECM", "TCM", "CEM", "BCM", "SRS"]
+def dtc_modules(network: str) -> list[str]:
+    """Módulos consultados por UDS em cada rede."""
+    return [m.name for m in modules.on_network(network)]
+
+
+UDS_DTC_MODULES = dtc_modules("hs")  # ECM, TCM, CEM, BCM, SRS
 LEVEL_MARK = {"ok": "[ ok ]", "atenção": "[ ! ]", "alerta": "[!!!]"}
 
 
 # ---------------------------------------------------------------- conexão
-SIM_BAD_CLONE = ("ATS0", "ATAT1", "ATCRA", "ATFCSH", "ATFCSD", "ATFCSM", "ATPPS", "ATSPB")
+SIM_BAD_CLONE = ("ATS0", "ATAT1", "ATCRA", "ATFCSH", "ATFCSD", "ATFCSM", "ATPPS", "ATPB", "ATSPB")
 
 
 def open_transport(args: argparse.Namespace) -> tuple[Transport, str]:
@@ -59,12 +64,18 @@ class Session:
         transport, self.label = open_transport(args)
         self.transport = transport
         self.elm = Elm327(transport, SafetyGuard(allow_clear=allow_clear))
-        version = self.elm.initialize()
+        self.network = getattr(args, "rede", None) or "hs"
+        version = self.elm.initialize(self.network)
         self.label += f" · {version}"
+        if self.network == "ms":
+            self.label += " · rede MS-CAN"
+            print("Rede MS-CAN (125 kbps, pinos 3/11): experimental. A chave do adaptador deve estar em MS.\n")
         self.obd = ObdClient(self.elm)
         self.uds = UdsClient(self.elm)
 
     def vin(self) -> str | None:
+        if self.network == "ms":
+            return None  # VIN só é lido na rede principal
         vin = self.obd.read_vin()
         if not vin:
             try:
@@ -154,8 +165,12 @@ def cmd_dtc(args: argparse.Namespace) -> None:
     now = time.time()
     found = 0
     try:
-        print("== Códigos OBD-II (motor e câmbio) ==")
-        for mode, label in ((0x03, "armazenado"), (0x07, "pendente"), (0x0A, "permanente")):
+        obd_modes = ((0x03, "armazenado"), (0x07, "pendente"), (0x0A, "permanente"))
+        if s.network == "hs":
+            print("== Códigos OBD-II (motor e câmbio) ==")
+        else:
+            obd_modes = ()  # os módulos de emissões ficam na rede principal
+        for mode, label in obd_modes:
             for ecu, codes in s.obd.read_dtcs(mode).items():
                 for code in codes:
                     desc = describe(code) or "sem descrição genérica"
@@ -163,8 +178,8 @@ def cmd_dtc(args: argparse.Namespace) -> None:
                     store.add_dtc(sid, now, f"OBD {label}", code, desc)
                     found += 1
         if not args.sem_modulos:
-            print("\n== Códigos dos módulos Volvo (UDS) ==")
-            for name in UDS_DTC_MODULES:
+            print(f"\n== Códigos dos módulos Volvo (UDS, rede {s.network.upper()}-CAN) ==")
+            for name in dtc_modules(s.network):
                 mod = modules.get(name)
                 try:
                     items = s.uds.read_dtcs(mod)
@@ -196,8 +211,11 @@ def cmd_dtc(args: argparse.Namespace) -> None:
 
 def cmd_apagar(args: argparse.Namespace) -> None:
     alvo = args.modulo.upper()
-    if alvo not in ("MOTOR-OBD", "TODOS", *UDS_DTC_MODULES):
-        raise SystemExit("Use --modulo motor-obd, todos, " + ", ".join(UDS_DTC_MODULES) + ".")
+    network = getattr(args, "rede", None) or "hs"
+    allowed = dtc_modules(network)
+    if alvo not in ("MOTOR-OBD", "TODOS", *allowed) or (alvo == "MOTOR-OBD" and network == "ms"):
+        opts = (["motor-obd"] if network == "hs" else []) + ["todos", *allowed]
+        raise SystemExit(f"Na rede {network.upper()}-CAN use --modulo " + ", ".join(opts) + ".")
     print("ATENÇÃO: apagar códigos também zera os monitores de emissões (o carro pode\n"
           "reprovar numa inspeção até rodar o suficiente) e apaga informações úteis para a oficina.\n"
           "Os códigos atuais serão lidos e salvos no histórico antes de apagar.")
@@ -207,9 +225,9 @@ def cmd_apagar(args: argparse.Namespace) -> None:
     cmd_dtc(argparse.Namespace(**{**vars(args), "sem_modulos": False}))
     s = Session(args, allow_clear=True)
     try:
-        if alvo in ("MOTOR-OBD", "TODOS"):
+        if alvo == "MOTOR-OBD" or (alvo == "TODOS" and network == "hs"):
             print("Motor (OBD 04):", s.obd.clear_dtcs())
-        targets = UDS_DTC_MODULES if alvo == "TODOS" else ([] if alvo == "MOTOR-OBD" else [alvo])
+        targets = allowed if alvo == "TODOS" else ([] if alvo == "MOTOR-OBD" else [alvo])
         for name in targets:
             try:
                 s.uds.clear_dtcs(modules.get(name))
@@ -223,13 +241,37 @@ def cmd_apagar(args: argparse.Namespace) -> None:
 def cmd_modulos(args: argparse.Namespace) -> None:
     s = Session(args)
     try:
+        print(f"Rede {s.network.upper()}-CAN\n")
         print(f"{'Módulo':6} {'Endereço':9} {'Responde':9} {'Rede':18} {'Fonte':14} Descrição")
-        for m in modules.MODULES.values():
+        for m in modules.on_network(s.network):
             ok = s.uds.ping(m)
             print(f"{m.name:6} 0x{m.tx:03X}     {'sim' if ok else 'não':9} {m.bus:18} {m.confidence:14} {m.description}")
-        print("\nMódulos na rede MS-CAN ainda não são acessados por esta versão.")
+        other = "ms" if s.network == "hs" else "hs"
+        names = ", ".join(dtc_modules(other))
+        print(f"\nNa outra rede ({other.upper()}-CAN): {names}. Use --rede {other} para consultá-los.")
+        print("Para procurar módulos em todos os endereços: volvodiag varrer-modulos")
     finally:
         s.close()
+
+
+def cmd_varrer_modulos(args: argparse.Namespace) -> None:
+    s = Session(args)
+    known = {m.tx: m.name for m in modules.MODULES.values()}
+    found: list[int] = []
+    print(f"Procurando módulos de 0x700 a 0x7F7 na rede {s.network.upper()}-CAN "
+          "(só a presença do testador, 3E 00, que não altera nada). Leva cerca de 1 a 2 minutos.")
+    try:
+        for tx in s.uds.scan_addresses(progress=lambda a: print(f"\r  0x{a:03X}", end="", flush=True)):
+            found.append(tx)
+            print(f"\r  0x{tx:03X} responde ({known.get(tx, 'desconhecido')})")
+    except KeyboardInterrupt:
+        print("\nInterrompido.")
+    finally:
+        s.close()
+    print(f"\r{len(found)} endereço(s) responderam: " + ", ".join(f"0x{t:03X}" for t in found))
+    unknown = [t for t in found if t not in known]
+    if unknown:
+        print("Endereços desconhecidos são módulos ainda não mapeados; envie esta lista para identificarmos.")
 
 
 def cmd_ler_did(args: argparse.Namespace) -> None:
@@ -414,6 +456,9 @@ def build_parser() -> argparse.ArgumentParser:
     conn.add_argument("--porta", help="porta serial do adaptador (ex.: COM5)")
     conn.add_argument("--tcp", help="adaptador Wi-Fi ou emulador (ip:porta)")
     conn.add_argument("--simulador", action="store_true", help="usa um XC60 simulado (dados fictícios)")
+    conn.add_argument("--rede", choices=["hs", "ms"], default="hs",
+                      help="hs: CAN principal, 500 kbps (padrão); ms: CAN média velocidade, 125 kbps "
+                           "(experimental, exige adaptador com chave HS/MS na posição MS)")
     p.add_argument("--db", help="arquivo do histórico (padrão: ~/.volvodiag/historico.sqlite)")
     p.add_argument("--debug", action="store_true", help="mostra a conversa com o adaptador")
     sub = p.add_subparsers(dest="comando", required=True)
@@ -431,6 +476,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--modulo", required=True, help="motor-obd, todos ou um módulo (ECM, TCM, CEM, BCM, SRS)")
     a.set_defaults(fn=cmd_apagar)
     sub.add_parser("modulos", help="verifica quais módulos respondem").set_defaults(fn=cmd_modulos)
+    sub.add_parser("varrer-modulos", help="procura módulos em todos os endereços (não altera nada)").set_defaults(fn=cmd_varrer_modulos)
     r = sub.add_parser("ler-did", help="lê um identificador UDS de um módulo (somente leitura)")
     r.add_argument("--modulo", required=True)
     r.add_argument("--did", required=True, help="identificador em hexadecimal (ex.: 4028)")
@@ -465,6 +511,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.rede == "ms" and args.comando in ("info", "ao-vivo", "saude"):
+        raise SystemExit(f"'{args.comando}' usa a rede principal. Rode sem --rede ms "
+                         "(e com a chave do adaptador em HS).")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING, format="%(message)s")
     try:
         args.fn(args)

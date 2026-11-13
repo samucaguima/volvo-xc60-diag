@@ -14,8 +14,8 @@ HS-CAN/MS-CAN** (interface USB FTDI ou CH340).
 * **USB:** vira porta COM no Windows, sem pareamento. Evite adaptadores
   "Bluetooth 4.0 / BLE": são feitos para iPhone e normalmente não aparecem como
   porta COM no Windows. Bluetooth clássico (2.0/3.0) e Wi-Fi também funcionam.
-* **Chave HS/MS-CAN:** dá acesso à rede de média velocidade (pinos 3 e 11), que
-  o sistema ainda não usa, mas que deve abrigar o painel e o climatizador.
+* **Chave HS/MS-CAN:** dá acesso à rede de média velocidade (pinos 3 e 11),
+  onde devem ficar o painel e o climatizador (opção `--rede ms`, experimental).
 * Adaptadores OBDLink (MX+, SX, EX) também funcionam, mas custam bem mais.
 
 Ao receber, rode `volvodiag --porta COMx testar-adaptador` com o adaptador
@@ -37,6 +37,8 @@ devolução, que ele aceita todos os comandos usados.
 | `volvodiag ao-vivo` | Painel em tempo real (rotação, temperaturas, turbo, misturas, tensão...) e gravação no histórico |
 | `volvodiag saude` | Avaliação rápida: bateria, carga, arrefecimento, óleo, mistura e luz de injeção |
 | `volvodiag modulos` | Verifica quais módulos do carro respondem |
+| `volvodiag varrer-modulos` | Procura módulos em todos os endereços (não altera nada) |
+| `--rede ms` | Rede de média velocidade (painel, climatizador), experimental, exige chave HS/MS-CAN |
 | `volvodiag ler-did` / `varrer-dids` | Lê e descobre dados específicos da Volvo (somente leitura) |
 | `volvodiag relatorio` | Gera um relatório HTML de uma sessão gravada, com gráficos |
 | `volvodiag manutencao` | Registra e lista revisões e trocas |
@@ -75,6 +77,7 @@ volvodiag --porta COM5 info
 Detalhes técnicos e fontes em [docs/protocolo-p3.md](docs/protocolo-p3.md).
 
 * Rede CAN de alta velocidade (pinos 6 e 14 do conector OBD), ISO 15765-4, 11 bits, 500 kbps.
+* Rede de média velocidade (pinos 3 e 11), 125 kbps, com `--rede ms` (experimental).
 * Dados padrão: OBD-II (SAE J1979), com até 6 dados por pedido.
 * Módulos Volvo: UDS (ISO 14229), serviços 19 (códigos de erro) e 22 (dados).
 * Histórico local em SQLite (`~/.volvodiag/historico.sqlite`).
