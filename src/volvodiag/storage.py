@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 SCHEMA = """
@@ -50,6 +51,24 @@ CREATE TABLE IF NOT EXISTS discovered_dids (
     PRIMARY KEY (module, did)
 );
 """
+
+
+def normalize_item(item: str) -> str:
+    """Chave de comparação de nomes de manutenção: ignora maiúsculas (inclusive
+    letras acentuadas, que o NOCASE do SQLite não trata) e espaços repetidos."""
+    return re.sub(r"\s+", " ", item).strip().casefold()
+
+
+def parse_date(text: str) -> str:
+    """Aceita AAAA-MM-DD ou DD/MM/AAAA e devolve AAAA-MM-DD."""
+    text = text.strip()
+    m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", text)
+    try:
+        if m:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1))).isoformat()
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        raise ValueError(f"data inválida: {text!r} (use AAAA-MM-DD ou DD/MM/AAAA)") from None
 
 
 def default_db() -> Path:
@@ -111,9 +130,10 @@ class Store:
         ).fetchall()
 
     # --------------------------------------------------------- manutenção
-    def add_maintenance(self, date: str, km: int | None, item: str, notes: str = "") -> int:
+    def add_maintenance(self, when: str, km: int | None, item: str, notes: str = "") -> int:
         cur = self.db.execute(
-            "INSERT INTO maintenance (date, km, item, notes) VALUES (?,?,?,?)", (date, km, item, notes)
+            "INSERT INTO maintenance (date, km, item, notes) VALUES (?,?,?,?)",
+            (parse_date(when), km, item.strip(), notes),
         )
         self.db.commit()
         return int(cur.lastrowid)
@@ -122,14 +142,33 @@ class Store:
         return self.db.execute("SELECT * FROM maintenance ORDER BY date DESC, id DESC").fetchall()
 
     def last_maintenance(self, item: str) -> sqlite3.Row | None:
-        return self.db.execute(
-            "SELECT * FROM maintenance WHERE item = ? COLLATE NOCASE ORDER BY date DESC, id DESC LIMIT 1",
-            (item,),
-        ).fetchone()
+        key = normalize_item(item)
+        for row in self.db.execute("SELECT * FROM maintenance ORDER BY date DESC, id DESC"):
+            if normalize_item(row["item"]) == key:
+                return row
+        return None
 
-    def set_interval(self, item: str, km: int | None, meses: int | None) -> None:
-        self.db.execute("INSERT OR REPLACE INTO maintenance_intervals VALUES (?,?,?)", (item, km, meses))
+    def set_interval(self, item: str, km: int | None, meses: int | None) -> sqlite3.Row:
+        """Cria ou altera um intervalo. ``None`` mantém o valor atual; ``0`` apaga."""
+        key = normalize_item(item)
+        existing = next((r for r in self.intervals() if normalize_item(r["item"]) == key), None)
+
+        def merge(new: int | None, old: int | None) -> int | None:
+            if new is None:
+                return old
+            return new or None  # 0 apaga
+
+        if existing:
+            self.db.execute(
+                "UPDATE maintenance_intervals SET km = ?, meses = ? WHERE item = ?",
+                (merge(km, existing["km"]), merge(meses, existing["meses"]), existing["item"]),
+            )
+            name = existing["item"]
+        else:
+            name = item.strip()
+            self.db.execute("INSERT INTO maintenance_intervals VALUES (?,?,?)", (name, km or None, meses or None))
         self.db.commit()
+        return self.db.execute("SELECT * FROM maintenance_intervals WHERE item = ?", (name,)).fetchone()
 
     def intervals(self) -> list[sqlite3.Row]:
         return self.db.execute("SELECT * FROM maintenance_intervals ORDER BY item").fetchall()

@@ -100,8 +100,15 @@ volvodiag --porta COM3 --rede ms modulos
 volvodiag --porta COM3 --rede ms dtc
 ```
 
-Volte a chave para **HS** antes de usar os demais comandos. Com a chave na
-posição errada, o adaptador não encontra os módulos (não causa dano).
+Antes de transmitir qualquer coisa com `--rede ms`, o sistema **escuta o
+barramento em silêncio** por cerca de 1,5 segundo. Só continua se ouvir
+mensagens válidas a 125 kbps; se a chave estiver em HS (rede principal, a
+500 kbps), ele para sem enviar nada ao carro e avisa. Isso evita transmitir na
+velocidade errada na rede do motor e do câmbio.
+
+Volte a chave para **HS** antes de usar os demais comandos. A rede MS é
+recusada em adaptadores OBDLink nesta versão (neles, o protocolo usado não muda
+de pinos).
 
 Para mapear todos os módulos da rede principal também:
 

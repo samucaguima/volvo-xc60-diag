@@ -31,7 +31,16 @@ HS/MS-CAN** (a chave liga o adaptador aos pinos 3/11):
 
 `AT PB` vale só para a sessão e não altera a memória do adaptador (datasheet do
 ELM327, parâmetros programáveis 2C e 2D). Adaptadores OBDLink usam comandos
-próprios (STN) para essa rede, ainda não implementados.
+próprios (STN) para essa rede, ainda não implementados; por isso `--rede ms` é
+recusado quando o adaptador responde ao `STI`.
+
+**Escuta antes de transmitir.** Transmitir a 125 kbps na rede principal
+(500 kbps), o que aconteceria com a chave do adaptador em HS, gera erros no
+barramento do motor e do câmbio. Por isso, antes de qualquer pedido, o sistema
+usa `AT CSM1` + `AT MA`: no modo de monitoramento o ELM327 não transmite nem
+confirma mensagens (datasheet, comandos CSM e MA; o próprio fabricante recomenda
+manter a escuta silenciosa até ter certeza da velocidade). Só segue se ouvir
+mensagens válidas; erros de recepção ou silêncio interrompem sem transmitir.
 
 O comando `varrer-modulos` procura, nas duas redes, quais endereços respondem à
 presença do testador (`3E 00`, que não altera nada), para confirmar o mapa abaixo.

@@ -19,7 +19,7 @@ class TransportError(Exception):
 
 
 class Transport(Protocol):
-    def write(self, data: bytes) -> None: ...
+    def write(self, data: bytes, keep_input: bool = False) -> None: ...
 
     def read_until_prompt(self, timeout: float) -> str: ...
 
@@ -36,21 +36,29 @@ class SerialTransport:
             import serial  # pyserial
         except ImportError as exc:  # pragma: no cover - depende do ambiente
             raise TransportError("Instale o pyserial: pip install pyserial") from exc
+        self._serial_error = serial.SerialException
         try:
             self._ser = serial.Serial(port, baudrate=baudrate, timeout=0.05)
         except Exception as exc:  # serial.SerialException
             raise TransportError(f"Não foi possível abrir {port}: {exc}") from exc
 
-    def write(self, data: bytes) -> None:
-        self._ser.reset_input_buffer()
-        self._ser.write(data)
-        self._ser.flush()
+    def write(self, data: bytes, keep_input: bool = False) -> None:
+        try:
+            if not keep_input:
+                self._ser.reset_input_buffer()
+            self._ser.write(data)
+            self._ser.flush()
+        except (OSError, self._serial_error) as exc:
+            raise TransportError(f"Conexão com o adaptador perdida: {exc}") from exc
 
     def read_until_prompt(self, timeout: float) -> str:
         deadline = time.monotonic() + timeout
         buf = bytearray()
         while time.monotonic() < deadline:
-            chunk = self._ser.read(self._ser.in_waiting or 1)
+            try:
+                chunk = self._ser.read(self._ser.in_waiting or 1)
+            except (OSError, self._serial_error) as exc:
+                raise TransportError(f"Conexão com o adaptador perdida: {exc}") from exc
             if chunk:
                 buf.extend(chunk)
                 if PROMPT in chunk:
@@ -69,8 +77,11 @@ class TcpTransport:
             raise TransportError(f"Não foi possível conectar a {host}:{port}: {exc}") from exc
         self._sock.settimeout(0.05)
 
-    def write(self, data: bytes) -> None:
-        self._sock.sendall(data)
+    def write(self, data: bytes, keep_input: bool = False) -> None:
+        try:
+            self._sock.sendall(data)
+        except OSError as exc:
+            raise TransportError(f"Conexão com o adaptador perdida: {exc}") from exc
 
     def read_until_prompt(self, timeout: float) -> str:
         deadline = time.monotonic() + timeout
@@ -80,6 +91,8 @@ class TcpTransport:
                 chunk = self._sock.recv(4096)
             except socket.timeout:
                 continue
+            except OSError as exc:
+                raise TransportError(f"Conexão com o adaptador perdida: {exc}") from exc
             if not chunk:
                 raise TransportError("Conexão encerrada pelo adaptador.")
             buf.extend(chunk)

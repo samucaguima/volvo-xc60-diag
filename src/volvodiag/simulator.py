@@ -1,4 +1,4 @@
-"""Simulador de um OBDLink MX+ ligado a um XC60 2014 Drive-E (dados FICTÍCIOS).
+"""Simulador de um adaptador ELM327 ligado a um XC60 2014 Drive-E (dados FICTÍCIOS).
 
 Serve para testar o sistema sem o carro: responde aos mesmos comandos AT e
 pedidos OBD/UDS, no mesmo formato de quadros CAN do adaptador real. Os
@@ -142,22 +142,45 @@ class SimulatedTransport:
         car: SimulatedCar | None = None,
         unsupported: tuple[str, ...] = (),
         ignition_on: bool = True,
+        stn: bool = False,
+        chave: str | None = None,
     ) -> None:
         """``unsupported``: prefixos de comandos AT recusados com "?", para
         simular um clone de ELM327 incompleto. ``ignition_on=False`` simula o
-        adaptador encaixado com a ignição desligada."""
+        adaptador encaixado com a ignição desligada. ``stn=True`` simula um
+        OBDLink (responde ao STI). ``chave``: posição física da chave HS/MS do
+        adaptador; ``None`` acompanha o protocolo escolhido (sempre certa)."""
         self.car = car or SimulatedCar()
         self.unsupported = unsupported
         self.ignition_on = ignition_on
+        self.stn = stn
+        self.chave = chave
+        self._monitoring = False
         self.header = 0x7DF
         self.spaces = True
         self.network = "hs"
         self._pb_ok = False
         self._out = ""
 
-    def write(self, data: bytes) -> None:
+    def write(self, data: bytes, keep_input: bool = False) -> None:
         cmd = data.decode("ascii").strip().upper().replace(" ", "")
+        if self._monitoring:  # qualquer caractere interrompe o AT MA
+            self._monitoring = False
+            self._out = self._monitor_output() + "\rSTOPPED"
+            return
         self._out = self._handle(cmd)
+
+    def _mismatch(self) -> bool:
+        """Velocidade do protocolo diferente da rede ligada pela chave."""
+        return self.chave is not None and self.chave.lower() != self.network
+
+    def _monitor_output(self) -> str:
+        if not self.ignition_on:
+            return ""
+        if self.network == "ms-errada" or self._mismatch():
+            return "<RX ERROR\r<RX ERROR"
+        lines = ["1A0" + "0102030405060708", "2B4" + "11223344"]
+        return "\r".join(lines)
 
     def read_until_prompt(self, timeout: float) -> str:
         out, self._out = self._out, ""
@@ -185,7 +208,10 @@ class SimulatedTransport:
             if cmd in ("ATZ", "ATI"):
                 return "ELM327 v1.4b"
             if cmd == "STI":
-                return "STN2255 v5.10.3 (simulador)"
+                return "STN2255 v5.10.3 (simulador)" if self.stn else "?"
+            if cmd == "ATMA":
+                self._monitoring = True
+                return ""
             if cmd == "ATRV":
                 return "14.1V" if self.ignition_on else "12.5V"
             if cmd == "ATPPS":
@@ -206,7 +232,7 @@ class SimulatedTransport:
                 self.spaces = cmd == "ATS1"
                 return "OK"
             known = ("ATE0", "ATL0", "ATH1", "ATAT1", "ATSP", "ATAR", "ATCRA",
-                     "ATFCSH", "ATFCSD", "ATFCSM", "ATD")
+                     "ATFCSH", "ATFCSD", "ATFCSM", "ATD", "ATCSM")
             return "OK" if cmd.startswith(known) else "?"
         try:
             req = bytes.fromhex(cmd)
@@ -214,7 +240,7 @@ class SimulatedTransport:
             return "?"
         if not self.ignition_on:
             return "SEARCHING...\rUNABLE TO CONNECT"
-        if self.network == "ms-errada":
+        if self.network == "ms-errada" or self._mismatch():
             return "CAN ERROR"
         if self.network == "ms" and self.header == 0x7DF:
             return "NO DATA"  # módulos de emissões não ficam na MS-CAN

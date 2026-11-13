@@ -16,7 +16,8 @@ HS-CAN/MS-CAN** (interface USB FTDI ou CH340).
   porta COM no Windows. Bluetooth clássico (2.0/3.0) e Wi-Fi também funcionam.
 * **Chave HS/MS-CAN:** dá acesso à rede de média velocidade (pinos 3 e 11),
   onde devem ficar o painel e o climatizador (opção `--rede ms`, experimental).
-* Adaptadores OBDLink (MX+, SX, EX) também funcionam, mas custam bem mais.
+* Adaptadores OBDLink (MX+, SX, EX) também funcionam na rede principal, mas custam
+  bem mais; a rede MS (`--rede ms`) é recusada neles nesta versão.
 
 Ao receber, rode `volvodiag --porta COMx testar-adaptador` com o adaptador
 encaixado no carro (ignição desligada) para confirmar, ainda no prazo de

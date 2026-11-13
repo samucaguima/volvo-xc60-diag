@@ -38,7 +38,10 @@ class LivePoller:
     """Faz um ciclo de leitura por chamada a ``poll``.
 
     Luz de injeção, quantidade de códigos e tensão do adaptador mudam devagar
-    e são lidos a cada ``slow_every`` ciclos, para não atrasar o painel.
+    e são lidos a cada ``slow_every`` ciclos, para não atrasar o painel. Entre
+    uma leitura e outra, o último valor é mostrado mas não é gravado de novo,
+    para não misturar um valor antigo com leituras de outro momento (por
+    exemplo, a tensão de antes da partida com o motor já ligado).
     """
 
     def __init__(self, elm: Elm327, obd: ObdClient, uds: UdsClient, volvo: bool, slow_every: int = 10) -> None:
@@ -50,14 +53,21 @@ class LivePoller:
         self.cycle = 0
         self._slow: Values = {}
 
-    def poll(self) -> Values:
-        if self.cycle % self.slow_every == 0:
-            st = self.obd.monitor_status()
-            if st:
-                self._slow["luz_injecao"] = (float(st.mil_on), "")
-                self._slow["qtd_codigos"] = (float(st.dtc_count), "")
-            volt = self.elm.adapter_voltage()
-            if volt:
-                self._slow["tensao_adaptador"] = (volt, "V")
+    def _read_slow(self) -> Values:
+        fresh: Values = {}
+        st = self.obd.monitor_status()
+        if st:
+            fresh["luz_injecao"] = (float(st.mil_on), "")
+            fresh["qtd_codigos"] = (float(st.dtc_count), "")
+        volt = self.elm.adapter_voltage()
+        if volt:
+            fresh["tensao_adaptador"] = (volt, "V")
+        self._slow = fresh  # o que deixou de responder sai da exibição
+        return fresh
+
+    def poll(self) -> tuple[Values, Values]:
+        """Devolve (valores para exibir, valores para gravar)."""
+        fresh_slow = self._read_slow() if self.cycle % self.slow_every == 0 else {}
         self.cycle += 1
-        return {**snapshot(self.obd, self.uds, self.pids, self.volvo), **self._slow}
+        fresh = snapshot(self.obd, self.uds, self.pids, self.volvo)
+        return {**fresh, **self._slow}, {**fresh, **fresh_slow}

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "volvodiag"
-version = "0.3.0"
+version = "0.3.1"
 description = "Diagnóstico somente leitura do Volvo XC60 (P3) com adaptador ELM327"
 readme = "README.md"
 requires-python = ">=3.10"

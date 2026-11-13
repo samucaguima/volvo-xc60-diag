@@ -8,6 +8,8 @@ para funcionar sem internet no carro. A leitura do adaptador acontece numa
 from __future__ import annotations
 
 import json
+import logging
+import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -21,6 +23,14 @@ from .storage import Store
 from .transport import TransportError
 
 HISTORY = 120  # pontos guardados por indicador para os gráficos
+log = logging.getLogger(__name__)
+
+
+class LocalServer(ThreadingHTTPServer):
+    # No Windows, SO_REUSEADDR deixaria dois painéis ocuparem a mesma porta
+    # sem erro; desligado lá, a porta ocupada é detectada.
+    allow_reuse_address = os.name != "nt"
+    daemon_threads = True
 
 
 class Dashboard:
@@ -40,19 +50,20 @@ class Dashboard:
         self._stop = threading.Event()
         self._state: dict[str, Any] = {"values": {}, "findings": [], "cycle": 0, "error": None, "ts": None}
         self._history: dict[str, list[tuple[float, float]]] = {}
-        self.server = ThreadingHTTPServer((host, port), self._handler())
+        self.server = LocalServer((host, port), self._handler())
         self.port = self.server.server_address[1]
-        self._threads: list[threading.Thread] = []
+        self._reader: threading.Thread | None = None
+        self._web: threading.Thread | None = None
 
     # ---------------------------------------------------------- leitura
     def _loop(self) -> None:
         while not self._stop.is_set():
             t0 = time.monotonic()
             try:
-                values = self.poller.poll()
+                values, to_store = self.poller.poll()
                 now = time.time()
                 if self.store and self.session_id:
-                    self.store.add_samples(self.session_id, now, values)
+                    self.store.add_samples(self.session_id, now, to_store)
                 findings = evaluate({k: v for k, (v, _) in values.items()})
                 with self._lock:
                     for k, (v, _) in values.items():
@@ -69,6 +80,10 @@ class Dashboard:
             except (ElmError, TransportError) as exc:
                 with self._lock:
                     self._state["error"] = str(exc)
+            except Exception as exc:  # nunca deixar a leitura morrer em silêncio
+                log.exception("falha inesperada na leitura do painel")
+                with self._lock:
+                    self._state["error"] = f"falha inesperada ({type(exc).__name__}): {exc}"
             self._stop.wait(max(0.0, self.interval - (time.monotonic() - t0)))
 
     def data(self) -> dict[str, Any]:
@@ -106,17 +121,23 @@ class Dashboard:
         return Handler
 
     def start(self) -> None:
-        for target in (self._loop, self.server.serve_forever):
-            t = threading.Thread(target=target, daemon=True)
-            t.start()
-            self._threads.append(t)
+        self._reader = threading.Thread(target=self._loop, daemon=True)
+        self._web = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self._reader.start()
+        self._web.start()
 
-    def stop(self) -> None:
+    def stop(self, wait: float = 30.0) -> bool:
+        """Para o painel. Devolve True se a leitura em andamento terminou, e só
+        então é seguro fechar o histórico e a conexão com o adaptador."""
         self._stop.set()
-        self.server.shutdown()
+        if self._web is not None:
+            self.server.shutdown()
+            self._web.join(timeout=5)
         self.server.server_close()
-        for t in self._threads:
-            t.join(timeout=5)
+        if self._reader is not None:
+            self._reader.join(timeout=wait)
+            return not self._reader.is_alive()
+        return True
 
 
 PAGE = """<!doctype html>
@@ -140,6 +161,7 @@ main{padding:16px;max-width:1200px;margin:auto}
 .tile .n{font-size:.8rem;color:var(--mut);min-height:2.2em}
 .tile .v{font-size:1.7rem;font-weight:600;font-variant-numeric:tabular-nums}
 .tile .u{font-size:.85rem;color:var(--mut);margin-left:4px}
+.tile.velho{opacity:.45}.tile.velho .n::after{content:" (sem leitura)";color:var(--bad)}
 canvas{width:100%;height:36px;display:block;margin-top:4px}
 h2{font-size:1rem;margin:22px 0 8px}
 .f{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--ok);
@@ -178,6 +200,7 @@ const m=d.meta;document.getElementById("sim").hidden=!m.simulado;
 document.getElementById("meta").textContent=`${m.adaptador} · ${m.sessao?"gravando sessão "+m.sessao:"sem gravar"} · ciclo ${d.cycle}`;
 const e=document.getElementById("err");e.style.display=d.error?"block":"none";e.textContent=d.error?"Falha de comunicação: "+d.error:"";
 const keys=Object.keys(d.values).sort((a,b)=>{const ia=ORDER.indexOf(a),ib=ORDER.indexOf(b);return(ia<0?99:ia)-(ib<0?99:ib)});
+for(const k in tiles){tiles[k].classList.toggle("velho",!(k in d.values))}
 for(const k of keys){const it=d.values[k];const t=tiles[k]||tile(k,it.nome);
 t.querySelector(".v").textContent=fmt(k,it.valor);t.querySelector(".u").textContent=it.unidade;
 spark(t.querySelector("canvas"),d.historico[k]||[])}

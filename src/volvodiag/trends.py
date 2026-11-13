@@ -110,7 +110,7 @@ def alerts(stats: list[SessionStats]) -> list[str]:
 @dataclass
 class Due:
     item: str
-    status: str  # "vencida", "próxima", "em dia", "sem registro"
+    status: str  # "vencida", "próxima", "em dia", "indefinida", "sem registro"
     detail: str
 
 
@@ -124,6 +124,9 @@ def _add_months(d: date, months: int) -> date:
 
 def due_list(store: Store, km_now: int | None, today: date | None = None,
              warn_km: int = 1000, warn_days: int = 30) -> list[Due]:
+    """Situação de cada intervalo cadastrado. "indefinida" quando não há
+    dados para conferir (km atual ou do serviço desconhecido) e nada mais
+    indica vencimento."""
     today = today or date.today()
     out: list[Due] = []
     for iv in store.intervals():
@@ -131,26 +134,37 @@ def due_list(store: Store, km_now: int | None, today: date | None = None,
         if last is None:
             out.append(Due(iv["item"], "sem registro", "registre a última vez que foi feita"))
             continue
-        parts, status = [], "em dia"
-        if iv["km"] and last["km"] is not None:
-            due_km = last["km"] + iv["km"]
-            if km_now is None:
-                parts.append(f"vence aos {due_km} km (informe --km-atual para comparar)")
+        parts, status, unknown = [], "em dia", []
+        if iv["km"]:
+            if last["km"] is None:
+                unknown.append("o registro não tem km; registre o serviço com --km")
             else:
-                left = due_km - km_now
-                parts.append(f"vence aos {due_km} km ({'faltam ' + str(left) if left >= 0 else 'passou ' + str(-left)} km)")
-                if left < 0:
-                    status = "vencida"
-                elif left <= warn_km:
-                    status = "próxima"
+                due_km = last["km"] + iv["km"]
+                if km_now is None:
+                    parts.append(f"vence aos {due_km} km")
+                    unknown.append("informe --km-atual para comparar o km")
+                else:
+                    left = due_km - km_now
+                    parts.append(f"vence aos {due_km} km ({'faltam ' + str(left) if left >= 0 else 'passou ' + str(-left)} km)")
+                    if left < 0:
+                        status = "vencida"
+                    elif left <= warn_km:
+                        status = "próxima"
         if iv["meses"]:
-            due_date = _add_months(date.fromisoformat(last["date"]), iv["meses"])
-            days_left = (due_date - today).days
-            parts.append(f"vence em {due_date.isoformat()} ({'faltam ' + str(days_left) if days_left >= 0 else 'passou ' + str(-days_left)} dias)")
-            if days_left < 0:
-                status = "vencida"
-            elif days_left <= warn_days and status != "vencida":
-                status = "próxima"
-        out.append(Due(iv["item"], status, f"última em {last['date']}" +
-                       (f" aos {last['km']} km" if last["km"] is not None else "") + "; " + "; ".join(parts)))
+            try:
+                last_date = date.fromisoformat(last["date"])
+            except ValueError:
+                unknown.append(f"data do registro inválida ({last['date']})")
+            else:
+                due_date = _add_months(last_date, iv["meses"])
+                days_left = (due_date - today).days
+                parts.append(f"vence em {due_date.isoformat()} ({'faltam ' + str(days_left) if days_left >= 0 else 'passou ' + str(-days_left)} dias)")
+                if days_left < 0:
+                    status = "vencida"
+                elif days_left <= warn_days and status != "vencida":
+                    status = "próxima"
+        if status == "em dia" and unknown:
+            status = "indefinida"
+        detail = f"última em {last['date']}" + (f" aos {last['km']} km" if last["km"] is not None else "")
+        out.append(Due(iv["item"], status, "; ".join([detail, *parts, *unknown])))
     return out

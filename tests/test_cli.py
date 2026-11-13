@@ -9,7 +9,7 @@ def test_cli_end_to_end_with_simulator(tmp_path, capsys):
     assert main([*base, "info"]) == 0
     out = capsys.readouterr().out
     assert "MODO SIMULADOR" in out and "YV1DZ40SIMULADO01" in out and "ACESA" in out
-    assert "ELM327 v1.4b (STN2255" in out and ">" not in out
+    assert "ELM327 v1.4b" in out and ">" not in out
 
     assert main([*base, "dtc"]) == 0
     out = capsys.readouterr().out

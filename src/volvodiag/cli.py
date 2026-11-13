@@ -29,7 +29,6 @@ def dtc_modules(network: str) -> list[str]:
     return [m.name for m in modules.on_network(network)]
 
 
-UDS_DTC_MODULES = dtc_modules("hs")  # ECM, TCM, CEM, BCM, SRS
 LEVEL_MARK = {"ok": "[ ok ]", "atenção": "[ ! ]", "alerta": "[!!!]"}
 
 
@@ -44,7 +43,8 @@ def open_transport(args: argparse.Namespace) -> tuple[Transport, str]:
         bad = getattr(args, "simular_clone_ruim", False)
         off = getattr(args, "simular_ignicao_desligada", False)
         transport = SimulatedTransport(
-            unsupported=SIM_BAD_CLONE if bad else (), ignition_on=not off
+            unsupported=SIM_BAD_CLONE if bad else (), ignition_on=not off,
+            chave=getattr(args, "simular_chave", None),
         )
         print("*** MODO SIMULADOR: dados fictícios, nenhum carro conectado ***\n")
         return transport, "simulador"
@@ -65,14 +65,30 @@ class Session:
         transport, self.label = open_transport(args)
         self.transport = transport
         self.elm = Elm327(transport, SafetyGuard(allow_clear=allow_clear))
-        self.network = getattr(args, "rede", None) or "hs"
-        version = self.elm.initialize(self.network)
+        try:
+            version = self.elm.initialize(args.rede)
+            if args.rede == "ms":
+                self._check_ms_bus()
+        except BaseException:
+            transport.close()
+            raise
         self.label += f" · {version}"
         if self.network == "ms":
             self.label += " · rede MS-CAN"
-            print("Rede MS-CAN (125 kbps, pinos 3/11): experimental. A chave do adaptador deve estar em MS.\n")
         self.obd = ObdClient(self.elm)
         self.uds = UdsClient(self.elm)
+
+    @property
+    def network(self) -> str:
+        return self.elm.network
+
+    def _check_ms_bus(self) -> None:
+        """Escuta em silêncio antes de transmitir qualquer coisa na rede MS."""
+        print("Rede MS-CAN (125 kbps, pinos 3/11), experimental. Escutando o barramento em silêncio...")
+        ok, detail = self.elm.verify_ms_bus(seconds=0.1 if self.simulated else 1.5)
+        if not ok:
+            raise SystemExit(f"Rede MS-CAN não confirmada: {detail}\nNada foi transmitido ao carro.")
+        print(f"Confirmada: {detail}.\n")
 
     def vin(self) -> str | None:
         if self.network == "ms":
@@ -91,6 +107,19 @@ class Session:
 
 def _store(args: argparse.Namespace) -> Store:
     return Store(args.db)
+
+
+def _module_on_network(name: str, network: str) -> modules.Module:
+    """O módulo pedido, desde que esteja na rede escolhida (evita esperar
+    respostas que não virão)."""
+    mod = modules.get(name)
+    if mod not in modules.on_network(network):
+        other = "ms" if network == "hs" else "hs"
+        raise SystemExit(
+            f"{mod.name} fica na rede {other.upper()}-CAN pelo mapa atual ({mod.bus}). "
+            f"Use --rede {other}. Se o varrer-modulos mostrar outra coisa no seu carro, avise para corrigir o mapa."
+        )
+    return mod
 
 
 # --------------------------------------------------------------- comandos
@@ -212,7 +241,7 @@ def cmd_dtc(args: argparse.Namespace) -> None:
 
 def cmd_apagar(args: argparse.Namespace) -> None:
     alvo = args.modulo.upper()
-    network = getattr(args, "rede", None) or "hs"
+    network = args.rede
     allowed = dtc_modules(network)
     if alvo not in ("MOTOR-OBD", "TODOS", *allowed) or (alvo == "MOTOR-OBD" and network == "ms"):
         opts = (["motor-obd"] if network == "hs" else []) + ["todos", *allowed]
@@ -276,10 +305,10 @@ def cmd_varrer_modulos(args: argparse.Namespace) -> None:
 
 
 def cmd_ler_did(args: argparse.Namespace) -> None:
+    mod = _module_on_network(args.modulo, args.rede)
+    did = int(args.did, 16)
     s = Session(args)
     try:
-        mod = modules.get(args.modulo)
-        did = int(args.did, 16)
         data = s.uds.read_did(mod, did)
         print(f"{mod.name} {did:04X}: {data.hex(' ').upper()}")
         for d in dids.for_module(mod.name):
@@ -292,7 +321,7 @@ def cmd_ler_did(args: argparse.Namespace) -> None:
 
 
 def cmd_varrer(args: argparse.Namespace) -> None:
-    mod = modules.get(args.modulo)
+    mod = _module_on_network(args.modulo, args.rede)
     start, end = dids.SCAN_RANGES.get(mod.name, (0xF180, 0xF1FF))
     if args.inicio:
         start = int(args.inicio, 16)
@@ -327,21 +356,24 @@ def _print_findings(values: dict[str, float]) -> None:
 
 def cmd_ao_vivo(args: argparse.Namespace) -> None:
     s = Session(args)
-    store = None if args.sem_gravar else _store(args)
-    sid = store.new_session("ao-vivo", s.vin(), s.label, s.simulated) if store else None
-    poller = LivePoller(s.elm, s.obd, s.uds, args.volvo)
-    if poller.missing:
-        print("Não oferecidos pelo carro: " + "; ".join(poller.missing))
-    if os.name == "nt":
-        os.system("")  # habilita cores/ANSI no console do Windows
-    t_end = time.monotonic() + args.duracao if args.duracao else None
+    store: Store | None = None
+    sid = None
     values: dict[str, tuple[float, str]] = {}
     try:
+        poller = LivePoller(s.elm, s.obd, s.uds, args.volvo)
+        if poller.missing:
+            print("Não oferecidos pelo carro: " + "; ".join(poller.missing))
+        if not args.sem_gravar:  # a sessão só é criada depois que a leitura está pronta
+            store = _store(args)
+            sid = store.new_session("ao-vivo", s.vin(), s.label, s.simulated)
+        if os.name == "nt":
+            os.system("")  # habilita cores/ANSI no console do Windows
+        t_end = time.monotonic() + args.duracao if args.duracao else None
         while t_end is None or time.monotonic() < t_end:
             t0 = time.monotonic()
-            values = poller.poll()
+            values, to_store = poller.poll()
             if store and sid:
-                store.add_samples(sid, time.time(), values)
+                store.add_samples(sid, time.time(), to_store)
             if sys.stdout.isatty():
                 print("\033[H\033[J", end="")
             print(f"XC60 ao vivo · ciclo {poller.cycle} · {'gravando sessão ' + str(sid) if sid else 'sem gravar'} · Ctrl+C para sair")
@@ -351,8 +383,9 @@ def cmd_ao_vivo(args: argparse.Namespace) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        print("\nAvaliação do último instante:")
-        _print_findings({k: v for k, (v, _) in values.items()})
+        if values:
+            print("\nAvaliação do último instante:")
+            _print_findings({k: v for k, (v, _) in values.items()})
         if sid:
             print(f"\nSessão {sid} gravada. Relatório: volvodiag relatorio --sessao {sid}")
         if store:
@@ -366,39 +399,51 @@ def cmd_painel(args: argparse.Namespace) -> None:
     from .web import Dashboard
 
     s = Session(args)
-    store = None if args.sem_gravar else Store(args.db, check_same_thread=False)
-    sid = store.new_session("painel", s.vin(), s.label, s.simulated) if store else None
-    poller = LivePoller(s.elm, s.obd, s.uds, args.volvo)
-    meta = {"adaptador": s.label, "simulado": s.simulated}
+    store: Store | None = None
+    dash: Dashboard | None = None
+    finished = True
+    stopped = False
     try:
-        dash = Dashboard(poller, store, sid, meta, interval=args.intervalo, port=args.porta_painel)
-    except OSError as exc:
-        s.close()
-        raise SystemExit(f"Não foi possível abrir o painel na porta {args.porta_painel}: {exc}. "
-                         "Use --porta-painel com outro número.") from None
-    url = f"http://127.0.0.1:{dash.port}/"
-    dash.start()
-    print(f"Painel aberto em {url}  (só neste computador). Ctrl+C encerra.")
-    if not args.nao_abrir:
-        webbrowser.open(url)
-    try:
-        if args.duracao:
-            time.sleep(args.duracao)
-        else:
-            while True:
-                time.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        dash.stop()
+        poller = LivePoller(s.elm, s.obd, s.uds, args.volvo)
+        meta = {"adaptador": s.label, "simulado": s.simulated}
+        try:
+            dash = Dashboard(poller, None, None, meta, interval=args.intervalo, port=args.porta_painel)
+        except OSError as exc:
+            raise SystemExit(f"Não foi possível abrir o painel na porta {args.porta_painel} ({exc}). "
+                             "Feche o outro painel ou use --porta-painel com outro número.") from None
+        if not args.sem_gravar:  # a sessão só é criada depois que o painel abriu
+            store = Store(args.db, check_same_thread=False)
+            dash.store = store
+            dash.session_id = store.new_session("painel", s.vin(), s.label, s.simulated)
+        url = f"http://127.0.0.1:{dash.port}/"
+        dash.start()
+        print(f"Painel aberto em {url}  (só neste computador). Ctrl+C encerra.")
+        if not args.nao_abrir:
+            webbrowser.open(url)
+        try:
+            if args.duracao:
+                time.sleep(args.duracao)
+            else:
+                while True:
+                    time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+        print("\nEncerrando: aguardando a leitura em andamento...")
+        finished, stopped = dash.stop(), True
         final = dash.data()
-        print("\nAvaliação do último instante:")
+        print("Avaliação do último instante:")
         _print_findings({k: v["valor"] for k, v in final["values"].items()})
-        if sid:
-            print(f"\nSessão {sid} gravada. Relatório: volvodiag relatorio --sessao {sid}")
-        if store:
-            store.close()
-        s.close()
+        if dash.session_id:
+            print(f"\nSessão {dash.session_id} gravada. Relatório: volvodiag relatorio --sessao {dash.session_id}")
+    finally:
+        if dash is not None and not stopped:  # saída por erro: para o painel antes de fechar o resto
+            finished = dash.stop()
+        if finished:  # com a leitura ainda ativa, fechar agora causaria erro nela
+            if store:
+                store.close()
+            s.close()
+        else:
+            print("A leitura não terminou a tempo; o programa será encerrado assim mesmo.")
 
 
 def cmd_saude(args: argparse.Namespace) -> None:
@@ -450,20 +495,22 @@ def cmd_manutencao(args: argparse.Namespace) -> None:
         if args.acao == "adicionar":
             if not args.item:
                 raise SystemExit("Informe --item (ex.: 'Troca de óleo e filtro').")
-            mid = store.add_maintenance(args.data or date.today().isoformat(), args.km, args.item, args.notas or "")
+            try:
+                mid = store.add_maintenance(args.data or date.today().isoformat(), args.km, args.item, args.notas or "")
+            except ValueError as exc:
+                raise SystemExit(str(exc)) from None
             print(f"Registro {mid} salvo.")
         elif args.acao == "intervalo":
-            if not args.item or not (args.km or args.meses):
+            if not args.item or (args.km is None and args.meses is None):
                 raise SystemExit("Informe --item e --km e/ou --meses (ex.: --item 'Troca de óleo e filtro' --km 10000 --meses 12).")
-            store.set_interval(args.item, args.km, args.meses)
-            print(f"Intervalo de '{args.item}': " + " ou ".join(
-                x for x in (f"{args.km} km" if args.km else "", f"{args.meses} meses" if args.meses else "") if x)
-                + ", o que vier primeiro.")
+            iv = store.set_interval(args.item, args.km, args.meses)
+            limits = [x for x in (f"{iv['km']} km" if iv["km"] else "", f"{iv['meses']} meses" if iv["meses"] else "") if x]
+            print(f"Intervalo de '{iv['item']}': " + (" ou ".join(limits) + ", o que vier primeiro." if limits else "sem limites."))
         elif args.acao == "proximas":
             items = due_list(store, args.km_atual)
             if not items:
                 print("Nenhum intervalo cadastrado. Use: volvodiag manutencao intervalo --item ... --km ... --meses ...")
-            marks = {"vencida": "[!!!]", "próxima": "[ ! ]", "em dia": "[ ok ]", "sem registro": "[ ? ]"}
+            marks = {"vencida": "[!!!]", "próxima": "[ ! ]", "em dia": "[ ok ]", "indefinida": "[ ? ]", "sem registro": "[ ? ]"}
             for d in items:
                 print(f"{marks[d.status]} {d.item}: {d.status}. {d.detail}")
         else:
@@ -511,6 +558,7 @@ def build_parser() -> argparse.ArgumentParser:
     conn.add_argument("--porta", help="porta serial do adaptador (ex.: COM5)")
     conn.add_argument("--tcp", help="adaptador Wi-Fi ou emulador (ip:porta)")
     conn.add_argument("--simulador", action="store_true", help="usa um XC60 simulado (dados fictícios)")
+    conn.add_argument("--simular-chave", choices=["HS", "MS"], help=argparse.SUPPRESS)
     conn.add_argument("--rede", choices=["hs", "ms"], default="hs",
                       help="hs: CAN principal, 500 kbps (padrão); ms: CAN média velocidade, 125 kbps "
                            "(experimental, exige adaptador com chave HS/MS na posição MS)")
@@ -523,7 +571,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--simular-clone-ruim", action="store_true", help=argparse.SUPPRESS)
     t.add_argument("--simular-ignicao-desligada", action="store_true", help=argparse.SUPPRESS)
     t.set_defaults(fn=cmd_testar_adaptador)
-    sub.add_parser("info", help="adaptador, VIN, luz de injeção e dados oferecidos").set_defaults(fn=cmd_info)
+    sub.add_parser("info", help="adaptador, VIN, luz de injeção e dados oferecidos").set_defaults(fn=cmd_info, needs_hs=True)
     d = sub.add_parser("dtc", help="lê e explica os códigos de erro")
     d.add_argument("--sem-modulos", action="store_true", help="só os códigos OBD-II do motor")
     d.set_defaults(fn=cmd_dtc)
@@ -547,7 +595,7 @@ def build_parser() -> argparse.ArgumentParser:
     lv.add_argument("--duracao", type=float, help="encerra após N segundos")
     lv.add_argument("--volvo", action="store_true", help="inclui dados Volvo (bateria pela CEM, óleo a confirmar)")
     lv.add_argument("--sem-gravar", action="store_true")
-    lv.set_defaults(fn=cmd_ao_vivo)
+    lv.set_defaults(fn=cmd_ao_vivo, needs_hs=True)
     pn = sub.add_parser("painel", help="painel ao vivo no navegador, gravando no histórico")
     pn.add_argument("--intervalo", type=float, default=1.0, help="segundos entre leituras")
     pn.add_argument("--volvo", action="store_true", help="inclui dados Volvo (bateria pela CEM, óleo a confirmar)")
@@ -555,8 +603,8 @@ def build_parser() -> argparse.ArgumentParser:
     pn.add_argument("--porta-painel", type=int, default=8765, help="porta local do painel (padrão 8765)")
     pn.add_argument("--nao-abrir", action="store_true", help="não abre o navegador automaticamente")
     pn.add_argument("--duracao", type=float, help=argparse.SUPPRESS)
-    pn.set_defaults(fn=cmd_painel)
-    sub.add_parser("saude", help="avaliação rápida de bateria, arrefecimento, mistura e luz de injeção").set_defaults(fn=cmd_saude)
+    pn.set_defaults(fn=cmd_painel, needs_hs=True)
+    sub.add_parser("saude", help="avaliação rápida de bateria, arrefecimento, mistura e luz de injeção").set_defaults(fn=cmd_saude, needs_hs=True)
     sub.add_parser("sessoes", help="lista as sessões gravadas").set_defaults(fn=cmd_sessoes)
     rp = sub.add_parser("relatorio", help="gera relatório HTML de uma sessão")
     rp.add_argument("--sessao", type=int)
@@ -568,9 +616,9 @@ def build_parser() -> argparse.ArgumentParser:
     tr.set_defaults(fn=cmd_tendencias)
     m = sub.add_parser("manutencao", help="registra manutenções, intervalos e próximos vencimentos")
     m.add_argument("acao", choices=["adicionar", "listar", "intervalo", "proximas"])
-    m.add_argument("--data", help="AAAA-MM-DD (padrão: hoje)")
-    m.add_argument("--km", type=int, help="km do serviço (adicionar) ou intervalo em km (intervalo)")
-    m.add_argument("--meses", type=int, help="intervalo em meses (intervalo)")
+    m.add_argument("--data", help="AAAA-MM-DD ou DD/MM/AAAA (padrão: hoje)")
+    m.add_argument("--km", type=int, help="km do serviço (adicionar) ou intervalo em km (intervalo; 0 apaga o limite)")
+    m.add_argument("--meses", type=int, help="intervalo em meses (intervalo); 0 apaga o limite")
     m.add_argument("--km-atual", type=int, help="quilometragem atual do carro (proximas)")
     m.add_argument("--item")
     m.add_argument("--notas")
@@ -580,7 +628,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.rede == "ms" and args.comando in ("info", "ao-vivo", "painel", "saude"):
+    if args.rede == "ms" and getattr(args, "needs_hs", False):
         raise SystemExit(f"'{args.comando}' usa a rede principal. Rode sem --rede ms "
                          "(e com a chave do adaptador em HS).")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING, format="%(message)s")

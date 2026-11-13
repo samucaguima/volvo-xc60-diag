@@ -55,11 +55,13 @@ class UdsClient:
 
     def ping(self, module: Module) -> bool:
         """Presença do testador (3E 00): só confirma que o módulo responde."""
-        try:
-            self._call(module, b"\x3e\x00", timeout=1.0)
-            return True
-        except (NoResponse, NegativeResponse):
-            return False
+        return self.responds(module.tx, module.rx)
+
+    def responds(self, tx: int, rx: int) -> bool:
+        """Algum módulo respondeu a 3E 00 no endereço rx? Resposta negativa
+        (ex.: serviço não suportado) também prova que há um módulo ali."""
+        self.elm.select_module(tx, rx, flow_control=False)  # resposta de um quadro só
+        return self.elm.request(b"\x3e\x00", timeout=1.0).get(rx) is not None
 
     def read_did(self, module: Module, did: int) -> bytes:
         resp = self._call(module, bytes([0x22, did >> 8, did & 0xFF]))
@@ -87,14 +89,12 @@ class UdsClient:
 
         Supõe a convenção Volvo/ISO de resposta no endereço de envio + 8.
         """
-        from .modules import Module
-
         for tx in range(start, end + 1):
             if tx == 0x7DF:
                 continue
             if progress:
                 progress(tx)
-            if self.ping(Module(f"0x{tx:03X}", tx, "", "", "")):
+            if self.responds(tx, tx + 8):
                 yield tx
 
     def scan_dids(
