@@ -15,6 +15,7 @@ from .dtc import describe
 from .elm327 import Elm327, ElmError
 from .health import evaluate
 from .labels import name as label
+from .live import LivePoller, snapshot
 from .obd import ObdClient
 from .pids import LIVE_PIDS, PIDS
 from .report import build as build_report
@@ -319,25 +320,6 @@ def cmd_varrer(args: argparse.Namespace) -> None:
         s.close()
 
 
-def _snapshot(s: Session, pids: list[int], volvo: bool) -> dict[str, tuple[float, str]]:
-    values: dict[str, tuple[float, str]] = {}
-    for r in s.obd.read_pids(pids):
-        if r.ecu == 0x7E8 or r.key not in values:
-            values[r.key] = (r.value, r.unit)
-    if "map" in values and "pressao_barometrica" in values:
-        values["pressao_turbo"] = (round(values["map"][0] - values["pressao_barometrica"][0], 1), "kPa")
-    if volvo:
-        for name, did in (("CEM", 0x4028), ("ECM", 0xD9DC)):
-            spec = next(d for d in dids.for_module(name) if d.did == did)
-            try:
-                val = spec.decode(s.uds.read_did(modules.get(name), did))
-                if isinstance(val, (int, float)):
-                    values[spec.key] = (float(val), spec.unit)
-            except (NoResponse, NegativeResponse, ElmError, IndexError):
-                pass
-    return values
-
-
 def _print_findings(values: dict[str, float]) -> None:
     for f in evaluate(values):
         print(f"  {LEVEL_MARK.get(f.level, f.level)} {f.item}: {f.message}")
@@ -347,38 +329,24 @@ def cmd_ao_vivo(args: argparse.Namespace) -> None:
     s = Session(args)
     store = None if args.sem_gravar else _store(args)
     sid = store.new_session("ao-vivo", s.vin(), s.label, s.simulated) if store else None
-    supported = s.obd.supported_pids()
-    pids = [p for p in LIVE_PIDS if p in supported]
-    missing = [PIDS[p].name for p in LIVE_PIDS if p not in supported]
-    if missing:
-        print("Não oferecidos pelo carro: " + "; ".join(missing))
+    poller = LivePoller(s.elm, s.obd, s.uds, args.volvo)
+    if poller.missing:
+        print("Não oferecidos pelo carro: " + "; ".join(poller.missing))
     if os.name == "nt":
         os.system("")  # habilita cores/ANSI no console do Windows
     t_end = time.monotonic() + args.duracao if args.duracao else None
-    cycle = 0
     values: dict[str, tuple[float, str]] = {}
-    slow: dict[str, tuple[float, str]] = {}  # lidos a cada 10 ciclos
     try:
         while t_end is None or time.monotonic() < t_end:
             t0 = time.monotonic()
-            if cycle % 10 == 0:
-                st = s.obd.monitor_status()
-                if st:
-                    slow["luz_injecao"] = (float(st.mil_on), "")
-                    slow["qtd_codigos"] = (float(st.dtc_count), "")
-                volt = s.elm.adapter_voltage()
-                if volt:
-                    slow["tensao_adaptador"] = (volt, "V")
-            values = {**_snapshot(s, pids, args.volvo), **slow}
+            values = poller.poll()
             if store and sid:
                 store.add_samples(sid, time.time(), values)
             if sys.stdout.isatty():
                 print("\033[H\033[J", end="")
-            print(f"XC60 ao vivo · ciclo {cycle} · {'gravando sessão ' + str(sid) if sid else 'sem gravar'} · Ctrl+C para sair")
+            print(f"XC60 ao vivo · ciclo {poller.cycle} · {'gravando sessão ' + str(sid) if sid else 'sem gravar'} · Ctrl+C para sair")
             for key, (val, unit) in values.items():
-                name = label(key)
-                print(f"  {name:48} {val:10.2f} {unit}")
-            cycle += 1
+                print(f"  {label(key):48} {val:10.2f} {unit}")
             time.sleep(max(0.0, args.intervalo - (time.monotonic() - t0)))
     except KeyboardInterrupt:
         pass
@@ -392,13 +360,52 @@ def cmd_ao_vivo(args: argparse.Namespace) -> None:
         s.close()
 
 
+def cmd_painel(args: argparse.Namespace) -> None:
+    import webbrowser
+
+    from .web import Dashboard
+
+    s = Session(args)
+    store = None if args.sem_gravar else Store(args.db, check_same_thread=False)
+    sid = store.new_session("painel", s.vin(), s.label, s.simulated) if store else None
+    poller = LivePoller(s.elm, s.obd, s.uds, args.volvo)
+    meta = {"adaptador": s.label, "simulado": s.simulated}
+    try:
+        dash = Dashboard(poller, store, sid, meta, interval=args.intervalo, port=args.porta_painel)
+    except OSError as exc:
+        s.close()
+        raise SystemExit(f"Não foi possível abrir o painel na porta {args.porta_painel}: {exc}. "
+                         "Use --porta-painel com outro número.") from None
+    url = f"http://127.0.0.1:{dash.port}/"
+    dash.start()
+    print(f"Painel aberto em {url}  (só neste computador). Ctrl+C encerra.")
+    if not args.nao_abrir:
+        webbrowser.open(url)
+    try:
+        if args.duracao:
+            time.sleep(args.duracao)
+        else:
+            while True:
+                time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        dash.stop()
+        final = dash.data()
+        print("\nAvaliação do último instante:")
+        _print_findings({k: v["valor"] for k, v in final["values"].items()})
+        if sid:
+            print(f"\nSessão {sid} gravada. Relatório: volvodiag relatorio --sessao {sid}")
+        if store:
+            store.close()
+        s.close()
 
 
 def cmd_saude(args: argparse.Namespace) -> None:
     s = Session(args)
     try:
         supported = s.obd.supported_pids()
-        values = _snapshot(s, [p for p in LIVE_PIDS if p in supported], volvo=True)
+        values = snapshot(s.obd, s.uds, [p for p in LIVE_PIDS if p in supported], volvo=True)
         st = s.obd.monitor_status()
         if st:
             values["luz_injecao"] = (float(st.mil_on), "")
@@ -493,6 +500,14 @@ def build_parser() -> argparse.ArgumentParser:
     lv.add_argument("--volvo", action="store_true", help="inclui dados Volvo (bateria pela CEM, óleo a confirmar)")
     lv.add_argument("--sem-gravar", action="store_true")
     lv.set_defaults(fn=cmd_ao_vivo)
+    pn = sub.add_parser("painel", help="painel ao vivo no navegador, gravando no histórico")
+    pn.add_argument("--intervalo", type=float, default=1.0, help="segundos entre leituras")
+    pn.add_argument("--volvo", action="store_true", help="inclui dados Volvo (bateria pela CEM, óleo a confirmar)")
+    pn.add_argument("--sem-gravar", action="store_true")
+    pn.add_argument("--porta-painel", type=int, default=8765, help="porta local do painel (padrão 8765)")
+    pn.add_argument("--nao-abrir", action="store_true", help="não abre o navegador automaticamente")
+    pn.add_argument("--duracao", type=float, help=argparse.SUPPRESS)
+    pn.set_defaults(fn=cmd_painel)
     sub.add_parser("saude", help="avaliação rápida de bateria, arrefecimento, mistura e luz de injeção").set_defaults(fn=cmd_saude)
     sub.add_parser("sessoes", help="lista as sessões gravadas").set_defaults(fn=cmd_sessoes)
     rp = sub.add_parser("relatorio", help="gera relatório HTML de uma sessão")
@@ -511,7 +526,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.rede == "ms" and args.comando in ("info", "ao-vivo", "saude"):
+    if args.rede == "ms" and args.comando in ("info", "ao-vivo", "painel", "saude"):
         raise SystemExit(f"'{args.comando}' usa a rede principal. Rode sem --rede ms "
                          "(e com a chave do adaptador em HS).")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING, format="%(message)s")

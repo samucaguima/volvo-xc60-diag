@@ -76,10 +76,12 @@ Depois com o motor ligado e o carro parado:
 
 ```powershell
 volvodiag --porta COM5 saude
-volvodiag --porta COM5 ao-vivo --volvo
+volvodiag --porta COM5 painel --volvo
 ```
 
-Ctrl+C encerra o painel. Para gerar o relatório da última sessão:
+O `painel` abre o navegador com os dados ao vivo, gráficos e alertas (endereço
+`http://127.0.0.1:8765`, só no próprio notebook, sem precisar de internet).
+`ao-vivo --volvo` mostra o mesmo no terminal. Ctrl+C encerra os dois. Para gerar o relatório da última sessão:
 
 ```powershell
 volvodiag relatorio

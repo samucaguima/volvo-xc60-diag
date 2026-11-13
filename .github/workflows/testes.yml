@@ -29,4 +29,6 @@ jobs:
           volvodiag --simulador --db ci.sqlite testar-adaptador
           volvodiag --simulador --db ci.sqlite dtc
           volvodiag --simulador --db ci.sqlite ao-vivo --duracao 2 --intervalo 0.5 --volvo
+          volvodiag --simulador --db ci.sqlite painel --duracao 2 --intervalo 0.5 --volvo --nao-abrir --porta-painel 0
+          volvodiag --simulador --rede ms --db ci.sqlite varrer-modulos
           volvodiag --db ci.sqlite relatorio --saida relatorio-ci.html

@@ -52,10 +52,11 @@ def default_db() -> Path:
 
 
 class Store:
-    def __init__(self, path: Path | str | None = None) -> None:
+    def __init__(self, path: Path | str | None = None, check_same_thread: bool = True) -> None:
         self.path = Path(path) if path else default_db()
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.path)
+        # check_same_thread=False: o painel grava a partir da linha de execução de leitura
+        self.db = sqlite3.connect(self.path, check_same_thread=check_same_thread)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
 

@@ -34,7 +34,8 @@ devolução, que ele aceita todos os comandos usados.
 | `volvodiag testar-adaptador` | Confere se o adaptador aceita todos os comandos usados (aprova ou reprova) |
 | `volvodiag info` | Adaptador, tensão da bateria, VIN, luz de injeção e dados que o carro oferece |
 | `volvodiag dtc` | Lê e explica os códigos de erro: OBD-II do motor e dos módulos Volvo (motor, câmbio, CEM, freios, airbag) |
-| `volvodiag ao-vivo` | Painel em tempo real (rotação, temperaturas, turbo, misturas, tensão...) e gravação no histórico |
+| `volvodiag painel` | Painel ao vivo no navegador, com gráficos e alertas, gravando no histórico (funciona sem internet) |
+| `volvodiag ao-vivo` | O mesmo painel em modo texto, no terminal |
 | `volvodiag saude` | Avaliação rápida: bateria, carga, arrefecimento, óleo, mistura e luz de injeção |
 | `volvodiag modulos` | Verifica quais módulos do carro respondem |
 | `volvodiag varrer-modulos` | Procura módulos em todos os endereços (não altera nada) |

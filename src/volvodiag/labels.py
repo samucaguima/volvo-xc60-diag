@@ -11,7 +11,7 @@ NAMES.update({
     "carga_bateria": "Estado de carga da bateria (CEM)",
     "temp_oleo_volvo": "Temperatura do óleo (Volvo, a confirmar)",
     "pressao_turbo_volvo": "Pressão no coletor, absoluta (Volvo, a confirmar)",
-    "luz_injecao": "Luz de injeção (1 = acesa)",
+    "luz_injecao": "Luz de injeção (1 = acesa)",  # o painel web mostra acesa/apagada
     "qtd_codigos": "Quantidade de códigos armazenados",
 })
 
