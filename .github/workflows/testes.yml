@@ -1,0 +1,32 @@
+name: testes
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.10", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Instalar
+        run: python -m pip install ".[dev]"
+      - name: Testes
+        run: python -m pytest -q
+      - name: Comandos no simulador
+        run: |
+          volvodiag --simulador --db ci.sqlite testar-adaptador
+          volvodiag --simulador --db ci.sqlite dtc
+          volvodiag --simulador --db ci.sqlite ao-vivo --duracao 2 --intervalo 0.5 --volvo
+          volvodiag --db ci.sqlite relatorio --saida relatorio-ci.html
