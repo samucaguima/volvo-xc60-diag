@@ -101,7 +101,11 @@ def test_decode_sae():
 
 
 def test_describe_generic():
-    assert "Catalyst" in describe("P0420")
+    assert describe("P0420") == "Eficiência do catalisador abaixo do limite (banco 1)"
+    assert describe("p0171") == "Mistura muito pobre (banco 1)"
+    # sem tradução: inglês, sinalizado
+    assert describe("P0401").endswith("(em inglês)")
+    assert describe("P9ZZZ") is None
 
 
 def test_uds_dtc_fields():

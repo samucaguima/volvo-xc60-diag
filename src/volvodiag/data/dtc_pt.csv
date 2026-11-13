@@ -1,0 +1,203 @@
+code,descricao_pt
+P0010,Comando de válvulas A: circuito de controle do atuador de posição aberto (banco 1)
+P0011,Comando de válvulas A: ponto excessivamente adiantado ou desempenho do sistema (banco 1)
+P0012,Comando de válvulas A: ponto excessivamente atrasado (banco 1)
+P0013,Comando de válvulas B: circuito de controle do atuador de posição aberto (banco 1)
+P0014,Comando de válvulas B: ponto excessivamente adiantado ou desempenho do sistema (banco 1)
+P0015,Comando de válvulas B: ponto excessivamente atrasado (banco 1)
+P0016,Correlação entre posição do virabrequim e do comando de válvulas (banco 1 sensor A)
+P0017,Correlação entre posição do virabrequim e do comando de válvulas (banco 1 sensor B)
+P0020,Comando de válvulas A: circuito de controle do atuador de posição aberto (banco 2)
+P0021,Comando de válvulas A: ponto excessivamente adiantado ou desempenho do sistema (banco 2)
+P0022,Comando de válvulas A: ponto excessivamente atrasado (banco 2)
+P0030,Circuito de controle do aquecedor da sonda lambda (banco 1 sensor 1)
+P0031,Circuito de controle do aquecedor da sonda lambda: sinal baixo (banco 1 sensor 1)
+P0032,Circuito de controle do aquecedor da sonda lambda: sinal alto (banco 1 sensor 1)
+P0033,Circuito de controle da válvula de alívio (bypass) A do turbo
+P0034,Circuito de controle da válvula de alívio (bypass) A do turbo: sinal baixo
+P0035,Circuito de controle da válvula de alívio (bypass) A do turbo: sinal alto
+P0036,Circuito de controle do aquecedor da sonda lambda (banco 1 sensor 2)
+P0037,Circuito de controle do aquecedor da sonda lambda: sinal baixo (banco 1 sensor 2)
+P0038,Circuito de controle do aquecedor da sonda lambda: sinal alto (banco 1 sensor 2)
+P0087,Pressão da galeria/sistema de combustível muito baixa (banco 1)
+P0088,Pressão da galeria/sistema de combustível muito alta (banco 1)
+P0089,Desempenho do regulador de pressão de combustível A
+P008A,Pressão do sistema de combustível de baixa pressão muito baixa
+P008B,Pressão do sistema de combustível de baixa pressão muito alta
+P008C,Circuito de controle da bomba do resfriador de combustível aberto
+P008D,Circuito de controle da bomba do resfriador de combustível: sinal baixo
+P008E,Circuito de controle da bomba do resfriador de combustível: sinal alto
+P008F,Correlação entre temperatura do líquido de arrefecimento e do combustível
+P0090,Circuito de controle do regulador de pressão de combustível A aberto
+P0091,Circuito de controle do regulador de pressão de combustível A: sinal baixo
+P0092,Circuito de controle do regulador de pressão de combustível A: sinal alto
+P0093,Vazamento grande detectado no sistema de combustível
+P0100,Circuito do sensor de fluxo de ar (MAF) A
+P0101,Circuito do sensor de fluxo de ar (MAF) A: faixa/desempenho
+P0102,Circuito do sensor de fluxo de ar (MAF) A: sinal baixo
+P0103,Circuito do sensor de fluxo de ar (MAF) A: sinal alto
+P0104,Circuito do sensor de fluxo de ar (MAF) A: intermitente
+P0105,Circuito do sensor de pressão absoluta do coletor/barométrica (MAP)
+P0106,Circuito do sensor de pressão absoluta do coletor/barométrica (MAP): faixa/desempenho
+P0107,Circuito do sensor de pressão absoluta do coletor/barométrica (MAP): sinal baixo
+P0108,Circuito do sensor de pressão absoluta do coletor/barométrica (MAP): sinal alto
+P0110,Circuito do sensor 1 de temperatura do ar de admissão (banco 1)
+P0111,Circuito do sensor 1 de temperatura do ar de admissão: faixa/desempenho (banco 1)
+P0112,Circuito do sensor 1 de temperatura do ar de admissão: sinal baixo (banco 1)
+P0113,Circuito do sensor 1 de temperatura do ar de admissão: sinal alto (banco 1)
+P0115,Circuito do sensor 1 de temperatura do líquido de arrefecimento
+P0116,Circuito do sensor 1 de temperatura do líquido de arrefecimento: faixa/desempenho
+P0117,Circuito do sensor 1 de temperatura do líquido de arrefecimento: sinal baixo
+P0118,Circuito do sensor 1 de temperatura do líquido de arrefecimento: sinal alto
+P0120,Circuito do sensor/interruptor A de posição da borboleta/pedal
+P0121,Circuito do sensor/interruptor A de posição da borboleta/pedal: faixa/desempenho
+P0122,Circuito do sensor/interruptor A de posição da borboleta/pedal: sinal baixo
+P0123,Circuito do sensor/interruptor A de posição da borboleta/pedal: sinal alto
+P0125,Temperatura do líquido de arrefecimento insuficiente para o controle de mistura em malha fechada
+P0128,Válvula termostática: temperatura do líquido de arrefecimento abaixo da temperatura de regulagem
+P0130,Circuito da sonda lambda (banco 1 sensor 1)
+P0131,Circuito da sonda lambda: tensão baixa (banco 1 sensor 1)
+P0132,Circuito da sonda lambda: tensão alta (banco 1 sensor 1)
+P0133,Circuito da sonda lambda: resposta lenta (banco 1 sensor 1)
+P0134,Circuito da sonda lambda: nenhuma atividade detectada (banco 1 sensor 1)
+P0135,Circuito do aquecedor da sonda lambda (banco 1 sensor 1)
+P0136,Circuito da sonda lambda (banco 1 sensor 2)
+P0137,Circuito da sonda lambda: tensão baixa (banco 1 sensor 2)
+P0138,Circuito da sonda lambda: tensão alta (banco 1 sensor 2)
+P0139,Circuito da sonda lambda: resposta lenta (banco 1 sensor 2)
+P013A,Sonda lambda com resposta lenta de rica para pobre (banco 1 sensor 2)
+P013B,Sonda lambda com resposta lenta de pobre para rica (banco 1 sensor 2)
+P013C,Sonda lambda com resposta lenta de rica para pobre (banco 2 sensor 2)
+P013D,Sonda lambda com resposta lenta de pobre para rica (banco 2 sensor 2)
+P013E,Sonda lambda com resposta atrasada de rica para pobre (banco 1 sensor 2)
+P013F,Sonda lambda com resposta atrasada de pobre para rica (banco 1 sensor 2)
+P0140,Circuito da sonda lambda: nenhuma atividade detectada (banco 1 sensor 2)
+P0141,Circuito do aquecedor da sonda lambda (banco 1 sensor 2)
+P0171,Mistura muito pobre (banco 1)
+P0172,Mistura muito rica (banco 1)
+P0190,Circuito do sensor de pressão da galeria de combustível (banco 1)
+P0191,Circuito do sensor de pressão da galeria de combustível: faixa/desempenho (banco 1)
+P0192,Circuito do sensor de pressão da galeria de combustível: sinal baixo (banco 1)
+P0193,Circuito do sensor de pressão da galeria de combustível: sinal alto (banco 1)
+P0201,Circuito do bico injetor A do cilindro 1
+P0202,Circuito do bico injetor A do cilindro 2
+P0203,Circuito do bico injetor A do cilindro 3
+P0204,Circuito do bico injetor A do cilindro 4
+P0234,Sobrepressão no turbo A (overboost)
+P0235,Circuito do sensor A de pressão do turbo
+P0236,Circuito do sensor A de pressão do turbo: faixa/desempenho
+P0237,Circuito do sensor A de pressão do turbo: sinal baixo
+P0238,Circuito do sensor A de pressão do turbo: sinal alto
+P0243,Atuador A da válvula wastegate do turbo
+P0244,Atuador A da válvula wastegate do turbo: faixa/desempenho
+P0245,Atuador A da válvula wastegate do turbo: sinal baixo
+P0246,Atuador A da válvula wastegate do turbo: sinal alto
+P0299,Pressão do turbo A abaixo do esperado (underboost)
+P0300,Falha de ignição aleatória ou em vários cilindros detectada
+P0301,Falha de ignição detectada no cilindro 1
+P0302,Falha de ignição detectada no cilindro 2
+P0303,Falha de ignição detectada no cilindro 3
+P0304,Falha de ignição detectada no cilindro 4
+P0325,Circuito do sensor de detonação A
+P0326,Circuito do sensor de detonação A: faixa/desempenho
+P0327,Circuito do sensor de detonação A: sinal baixo
+P0328,Circuito do sensor de detonação A: sinal alto
+P0335,Circuito do sensor A de posição do virabrequim
+P0336,Circuito do sensor A de posição do virabrequim: faixa/desempenho
+P0337,Circuito do sensor A de posição do virabrequim: sinal baixo
+P0338,Circuito do sensor A de posição do virabrequim: sinal alto
+P0339,Circuito do sensor A de posição do virabrequim: intermitente
+P0340,Circuito do sensor A de posição do comando de válvulas (banco 1 ou sensor único)
+P0341,Circuito do sensor A de posição do comando de válvulas: faixa/desempenho (banco 1 ou sensor único)
+P0342,Circuito do sensor A de posição do comando de válvulas: sinal baixo (banco 1 ou sensor único)
+P0343,Circuito do sensor A de posição do comando de válvulas: sinal alto (banco 1 ou sensor único)
+P0344,Circuito do sensor A de posição do comando de válvulas: intermitente (banco 1 ou sensor único)
+P0351,Circuito de controle do primário da bobina de ignição A aberto
+P0352,Circuito de controle do primário da bobina de ignição B aberto
+P0353,Circuito de controle do primário da bobina de ignição C aberto
+P0354,Circuito de controle do primário da bobina de ignição D aberto
+P0420,Eficiência do catalisador abaixo do limite (banco 1)
+P0441,Sistema de emissões evaporativas (EVAP): fluxo de purga incorreto
+P0442,Sistema de emissões evaporativas (EVAP): vazamento pequeno detectado
+P0443,Sistema de emissões evaporativas (EVAP): circuito da válvula de purga A (cânister)
+P0446,Sistema de emissões evaporativas (EVAP): circuito de controle do respiro
+P0449,Sistema de emissões evaporativas (EVAP): circuito de controle da válvula de respiro aberto
+P0451,Sistema de emissões evaporativas (EVAP): sensor/interruptor de pressão A: faixa/desempenho
+P0452,Sistema de emissões evaporativas (EVAP): sensor/interruptor de pressão A: sinal baixo
+P0453,Sistema de emissões evaporativas (EVAP): sensor/interruptor de pressão A: sinal alto
+P0455,Sistema de emissões evaporativas (EVAP): vazamento grande detectado
+P0456,Sistema de emissões evaporativas (EVAP): vazamento muito pequeno detectado
+P0457,Sistema de emissões evaporativas (EVAP): vazamento detectado (tampa do tanque solta ou ausente)
+P0480,Circuito de controle do eletroventilador 1
+P0481,Circuito de controle do eletroventilador 2
+P0500,Circuito do sensor A de velocidade do veículo
+P0505,Sistema de controle da marcha lenta
+P0506,Controle da marcha lenta: rotação abaixo do esperado
+P0507,Controle da marcha lenta: rotação acima do esperado
+P0560,Tensão do sistema elétrico
+P0561,Tensão do sistema elétrico instável
+P0562,Tensão do sistema elétrico baixa
+P0563,Tensão do sistema elétrico alta
+P0571,Circuito do interruptor A do pedal de freio
+P0600,Link de comunicação serial
+P0601,Erro de soma de verificação da memória interna do módulo de controle
+P0602,Erro de programação do módulo de controle
+P0603,Erro da memória de manutenção (KAM) interna do módulo de controle
+P0604,Erro da memória RAM interna do módulo de controle
+P0605,Erro da memória ROM interna do módulo de controle
+P0606,Processador do módulo de controle
+P0620,Circuito de controle do alternador
+P0621,Circuito da lâmpada/terminal L do alternador
+P0622,Circuito de campo/terminal F do alternador
+P0627,Circuito de controle da bomba de combustível A aberto
+P0700,Sistema de controle da transmissão (pedido para acender a luz de injeção)
+P0705,Circuito do sensor A de posição da alavanca do câmbio (PRNDL)
+P0706,Circuito do sensor A de posição da alavanca do câmbio: faixa/desempenho
+P0710,Circuito do sensor A de temperatura do fluido da transmissão
+P0711,Circuito do sensor A de temperatura do fluido da transmissão: faixa/desempenho
+P0712,Circuito do sensor A de temperatura do fluido da transmissão: sinal baixo
+P0713,Circuito do sensor A de temperatura do fluido da transmissão: sinal alto
+P0715,Circuito do sensor A de rotação do eixo de entrada/turbina
+P0716,Circuito do sensor A de rotação do eixo de entrada/turbina: faixa/desempenho
+P0717,Circuito do sensor A de rotação do eixo de entrada/turbina: sem sinal
+P0720,Circuito do sensor de rotação do eixo de saída
+P0721,Circuito do sensor de rotação do eixo de saída: faixa/desempenho
+P0722,Circuito do sensor de rotação do eixo de saída: sem sinal
+P0730,Relação de marcha incorreta
+P0731,Relação incorreta na 1ª marcha
+P0732,Relação incorreta na 2ª marcha
+P0733,Relação incorreta na 3ª marcha
+P0734,Relação incorreta na 4ª marcha
+P0735,Relação incorreta na 5ª marcha
+P0736,Relação incorreta na marcha a ré
+P0740,Circuito da embreagem do conversor de torque (lock-up) aberto
+P0741,Embreagem do conversor de torque (lock-up): desempenho ou travada desacoplada
+P0742,Embreagem do conversor de torque (lock-up): travada acoplada
+P0743,Circuito elétrico da embreagem do conversor de torque (lock-up)
+P0744,Circuito da embreagem do conversor de torque (lock-up): intermitente
+P0750,Solenoide de troca de marcha A
+P0755,Solenoide de troca de marcha B
+P0760,Solenoide de troca de marcha C
+P0765,Solenoide de troca de marcha D
+P0770,Solenoide de troca de marcha E
+P2096,Correção de mistura pós-catalisador: muito pobre (banco 1)
+P2097,Correção de mistura pós-catalisador: muito rica (banco 1)
+P2098,Correção de mistura pós-catalisador: muito pobre (banco 2)
+P2099,Correção de mistura pós-catalisador: muito rica (banco 2)
+P2177,Mistura muito pobre fora da marcha lenta (banco 1)
+P2178,Mistura muito rica fora da marcha lenta (banco 1)
+P2187,Mistura muito pobre em marcha lenta (banco 1)
+P2188,Mistura muito rica em marcha lenta (banco 1)
+P2195,Sinal da sonda lambda desviado/travado em pobre (banco 1 sensor 1)
+P2196,Sinal da sonda lambda desviado/travado em rica (banco 1 sensor 1)
+P2261,Válvula de alívio (bypass) A do turbo: falha mecânica
+P2263,Desempenho do sistema de pressão do turbo A
+P2279,Vazamento no sistema de admissão de ar (banco 1)
+U0001,Barramento de comunicação CAN de alta velocidade
+U0073,Barramento de comunicação A dos módulos desligado (bus off)
+U0100,Perda de comunicação com o módulo do motor (ECM/PCM) A
+U0101,Perda de comunicação com o módulo do câmbio (TCM)
+U0121,Perda de comunicação com o módulo do ABS A
+U0140,Perda de comunicação com o módulo de carroceria
+U0155,Perda de comunicação com o painel de instrumentos (IPC)
+U0164,Perda de comunicação com o módulo do climatizador (HVAC)

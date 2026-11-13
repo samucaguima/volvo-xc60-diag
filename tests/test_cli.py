@@ -13,7 +13,7 @@ def test_cli_end_to_end_with_simulator(tmp_path, capsys):
 
     assert main([*base, "dtc"]) == 0
     out = capsys.readouterr().out
-    assert "P0420" in out and "Catalyst" in out and "CEM-A12B" in out
+    assert "P0420" in out and "catalisador" in out and "CEM-A12B" in out
     assert "DIM" not in out or "sem resposta" in out
 
     assert main([*base, "modulos"]) == 0

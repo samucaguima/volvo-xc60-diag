@@ -2,7 +2,9 @@
 
 As descrições genéricas (padrão SAE J2012, em inglês) vêm do projeto
 Wal33D/dtc-database (licença MIT, ver data/LICENSE-dtc-database.txt).
-Códigos específicos da Volvo não têm descrição pública nessa base.
+Os códigos mais comuns têm tradução livre para o português em
+data/dtc_pt.csv (não oficial). Códigos específicos da Volvo não têm
+descrição pública nessa base.
 """
 
 from __future__ import annotations
@@ -43,9 +45,22 @@ def _generic_table() -> dict[str, str]:
     return table
 
 
+@lru_cache(maxsize=1)
+def _pt_table() -> dict[str, str]:
+    path = resources.files("volvodiag") / "data" / "dtc_pt.csv"
+    with path.open(encoding="utf-8") as f:
+        return {row["code"]: row["descricao_pt"] for row in csv.DictReader(f)}
+
+
 def describe(code: str) -> str | None:
-    """Descrição genérica (inglês) de um código SAE, se conhecida."""
-    return _generic_table().get(code.upper())
+    """Descrição genérica de um código SAE: em português quando houver
+    tradução, senão em inglês com a indicação "(em inglês)"."""
+    code = code.upper()
+    pt = _pt_table().get(code)
+    if pt:
+        return pt
+    en = _generic_table().get(code)
+    return f"{en} (em inglês)" if en else None
 
 
 @dataclass

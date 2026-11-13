@@ -93,6 +93,8 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ## Créditos
 
 * Descrições genéricas de códigos de erro: [Wal33D/dtc-database](https://github.com/Wal33D/dtc-database) (MIT).
+  Os 202 códigos mais comuns têm tradução livre para o português (`src/volvodiag/data/dtc_pt.csv`, não oficial);
+  os demais aparecem em inglês.
 * Endereços e dados de referência para P3: [Sebastian-Gebus/volvo-p3-dashboard](https://github.com/Sebastian-Gebus/volvo-p3-dashboard)
   (MIT) e [oleksandrdiadyk-glitch/volvoscan](https://github.com/oleksandrdiadyk-glitch/volvoscan) (sem licença declarada; usado apenas como indicação, sem copiar código).
 
