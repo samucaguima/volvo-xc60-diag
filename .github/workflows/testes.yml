@@ -32,3 +32,7 @@ jobs:
           volvodiag --simulador --db ci.sqlite painel --duracao 2 --intervalo 0.5 --volvo --nao-abrir --porta-painel 0
           volvodiag --simulador --rede ms --db ci.sqlite varrer-modulos
           volvodiag --db ci.sqlite relatorio --saida relatorio-ci.html
+          volvodiag --db ci.sqlite tendencias --incluir-simuladas
+          volvodiag --db ci.sqlite manutencao intervalo --item "Troca de óleo" --km 10000 --meses 12
+          volvodiag --db ci.sqlite manutencao adicionar --item "Troca de óleo" --km 90000
+          volvodiag --db ci.sqlite manutencao proximas --km-atual 95000

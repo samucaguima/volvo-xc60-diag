@@ -42,7 +42,8 @@ devolução, que ele aceita todos os comandos usados.
 | `--rede ms` | Rede de média velocidade (painel, climatizador), experimental, exige chave HS/MS-CAN |
 | `volvodiag ler-did` / `varrer-dids` | Lê e descobre dados específicos da Volvo (somente leitura) |
 | `volvodiag relatorio` | Gera um relatório HTML de uma sessão gravada, com gráficos |
-| `volvodiag manutencao` | Registra e lista revisões e trocas |
+| `volvodiag tendencias` | Compara as sessões gravadas: bateria, carga, mistura, temperatura |
+| `volvodiag manutencao` | Registra serviços, cadastra intervalos e mostra os próximos vencimentos |
 | `volvodiag apagar-dtc` | Apaga códigos de erro, com confirmação digitada |
 
 Todos os comandos aceitam `--simulador` para testar sem o carro (dados fictícios).

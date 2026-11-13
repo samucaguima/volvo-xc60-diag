@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS maintenance (
     item TEXT NOT NULL,
     notes TEXT
 );
+CREATE TABLE IF NOT EXISTS maintenance_intervals (
+    item TEXT PRIMARY KEY COLLATE NOCASE,
+    km INTEGER,
+    meses INTEGER
+);
 CREATE TABLE IF NOT EXISTS discovered_dids (
     module TEXT NOT NULL,
     did INTEGER NOT NULL,
@@ -115,6 +120,19 @@ class Store:
 
     def maintenance(self) -> list[sqlite3.Row]:
         return self.db.execute("SELECT * FROM maintenance ORDER BY date DESC, id DESC").fetchall()
+
+    def last_maintenance(self, item: str) -> sqlite3.Row | None:
+        return self.db.execute(
+            "SELECT * FROM maintenance WHERE item = ? COLLATE NOCASE ORDER BY date DESC, id DESC LIMIT 1",
+            (item,),
+        ).fetchone()
+
+    def set_interval(self, item: str, km: int | None, meses: int | None) -> None:
+        self.db.execute("INSERT OR REPLACE INTO maintenance_intervals VALUES (?,?,?)", (item, km, meses))
+        self.db.commit()
+
+    def intervals(self) -> list[sqlite3.Row]:
+        return self.db.execute("SELECT * FROM maintenance_intervals ORDER BY item").fetchall()
 
     # ------------------------------------------------- DIDs descobertos
     def save_did(self, module: str, did: int, data: bytes) -> None:

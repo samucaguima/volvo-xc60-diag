@@ -125,6 +125,29 @@ Os resultados ficam no histórico local. Envie a saída para continuarmos o
 mapeamento: cada identificador precisa ser confirmado comparando o valor com o
 painel do carro antes de ser usado.
 
+## 7. Acompanhar o carro ao longo do tempo
+
+**Tendências.** Cada `painel` ou `ao-vivo` gravado vira uma sessão. Para a
+comparação de bateria ser útil, comece a sessão com a **ignição ligada e o
+motor desligado** por uns 30 segundos e só então dê a partida. Depois de
+algumas sessões:
+
+```powershell
+volvodiag tendencias
+```
+
+**Manutenção.** Cadastre os intervalos do manual do seu XC60 ou da sua
+concessionária (o sistema não traz intervalos oficiais da Volvo). Exemplo:
+
+```powershell
+volvodiag manutencao intervalo --item "Troca de óleo e filtro" --km 10000 --meses 12
+volvodiag manutencao adicionar --item "Troca de óleo e filtro" --km 98000 --data 2026-08-20
+volvodiag manutencao proximas --km-atual 101500
+```
+
+Use sempre o mesmo nome de item no intervalo e nos registros (maiúsculas e
+minúsculas não importam).
+
 ## Problemas comuns
 
 | Mensagem | O que fazer |

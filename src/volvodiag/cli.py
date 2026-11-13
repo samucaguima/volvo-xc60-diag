@@ -443,16 +443,64 @@ def cmd_relatorio(args: argparse.Namespace) -> None:
 
 
 def cmd_manutencao(args: argparse.Namespace) -> None:
+    from .trends import due_list
+
     store = _store(args)
-    if args.acao == "adicionar":
-        if not args.item:
-            raise SystemExit("Informe --item (ex.: 'Troca de óleo e filtro').")
-        mid = store.add_maintenance(args.data or date.today().isoformat(), args.km, args.item, args.notas or "")
-        print(f"Registro {mid} salvo.")
-    else:
-        for m in store.maintenance():
-            print(f"{m['date']}  {m['km'] or '':>7} km  {m['item']}  {m['notes'] or ''}")
-    store.close()
+    try:
+        if args.acao == "adicionar":
+            if not args.item:
+                raise SystemExit("Informe --item (ex.: 'Troca de óleo e filtro').")
+            mid = store.add_maintenance(args.data or date.today().isoformat(), args.km, args.item, args.notas or "")
+            print(f"Registro {mid} salvo.")
+        elif args.acao == "intervalo":
+            if not args.item or not (args.km or args.meses):
+                raise SystemExit("Informe --item e --km e/ou --meses (ex.: --item 'Troca de óleo e filtro' --km 10000 --meses 12).")
+            store.set_interval(args.item, args.km, args.meses)
+            print(f"Intervalo de '{args.item}': " + " ou ".join(
+                x for x in (f"{args.km} km" if args.km else "", f"{args.meses} meses" if args.meses else "") if x)
+                + ", o que vier primeiro.")
+        elif args.acao == "proximas":
+            items = due_list(store, args.km_atual)
+            if not items:
+                print("Nenhum intervalo cadastrado. Use: volvodiag manutencao intervalo --item ... --km ... --meses ...")
+            marks = {"vencida": "[!!!]", "próxima": "[ ! ]", "em dia": "[ ok ]", "sem registro": "[ ? ]"}
+            for d in items:
+                print(f"{marks[d.status]} {d.item}: {d.status}. {d.detail}")
+        else:
+            for m in store.maintenance():
+                print(f"{m['date']}  {m['km'] or '':>7} km  {m['item']}  {m['notes'] or ''}")
+            for iv in store.intervals():
+                print(f"  intervalo: {iv['item']}: {iv['km'] or '-'} km / {iv['meses'] or '-'} meses")
+    finally:
+        store.close()
+
+
+def cmd_tendencias(args: argparse.Namespace) -> None:
+    from .trends import METRICS, alerts, collect
+
+    store = _store(args)
+    try:
+        stats = collect(store, args.ultimas, args.incluir_simuladas)
+    finally:
+        store.close()
+    if not stats:
+        raise SystemExit("Nenhuma sessão ao vivo gravada ainda (use ao-vivo ou painel).")
+    print(f"{'Sessão':>6}  {'Data':16}" + "".join(f"  {short:>9}" for short, _, _ in METRICS.values()))
+    for st in stats:
+        cells = "".join(
+            f"  {('-' if getattr(st, k) is None else f'{getattr(st, k):.1f}'):>9}" for k in METRICS
+        )
+        print(f"{st.session_id:>6}  {st.started_at[:16]:16}{cells}" + ("  sim." if st.simulated else ""))
+    print("\n" + "\n".join(f"  {short}: {desc} ({unit})" for short, desc, unit in METRICS.values()))
+    found = alerts(stats)
+    print("\nComparação da última sessão com as anteriores:")
+    if len(stats) < 2:
+        print("  é preciso pelo menos duas sessões.")
+    elif not found:
+        print("  [ ok ] nenhuma mudança relevante.")
+    for a in found:
+        print(f"  [ ! ] {a}")
+    print("Referências gerais, não especificações da Volvo. Compare sessões em condições parecidas.")
 
 
 # ------------------------------------------------------------------ main
@@ -514,10 +562,16 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--sessao", type=int)
     rp.add_argument("--saida")
     rp.set_defaults(fn=cmd_relatorio)
-    m = sub.add_parser("manutencao", help="registra e lista manutenções")
-    m.add_argument("acao", choices=["adicionar", "listar"])
+    tr = sub.add_parser("tendencias", help="compara as sessões gravadas (bateria, carga, mistura, temperatura)")
+    tr.add_argument("--ultimas", type=int, default=10, help="quantas sessões comparar")
+    tr.add_argument("--incluir-simuladas", action="store_true")
+    tr.set_defaults(fn=cmd_tendencias)
+    m = sub.add_parser("manutencao", help="registra manutenções, intervalos e próximos vencimentos")
+    m.add_argument("acao", choices=["adicionar", "listar", "intervalo", "proximas"])
     m.add_argument("--data", help="AAAA-MM-DD (padrão: hoje)")
-    m.add_argument("--km", type=int)
+    m.add_argument("--km", type=int, help="km do serviço (adicionar) ou intervalo em km (intervalo)")
+    m.add_argument("--meses", type=int, help="intervalo em meses (intervalo)")
+    m.add_argument("--km-atual", type=int, help="quilometragem atual do carro (proximas)")
     m.add_argument("--item")
     m.add_argument("--notas")
     m.set_defaults(fn=cmd_manutencao)
