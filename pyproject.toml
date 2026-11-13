@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "volvodiag"
-version = "0.1.0"
-description = "Diagnóstico somente leitura do Volvo XC60 (P3) com OBDLink MX+ / ELM327"
+version = "0.2.0"
+description = "Diagnóstico somente leitura do Volvo XC60 (P3) com adaptador ELM327"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

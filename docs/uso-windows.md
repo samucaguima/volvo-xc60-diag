@@ -1,4 +1,4 @@
-# Uso no Windows com o OBDLink MX+
+# Uso no Windows com adaptador ELM327 (USB ou Bluetooth)
 
 ## 1. Instalar o Python e o Git
 
@@ -21,14 +21,46 @@ volvodiag --simulador info
 Se o repositório for privado, o Git abre uma janela para você entrar no GitHub.
 Se o comando `volvodiag` não for encontrado, use `py -m volvodiag` no lugar dele.
 
-## 3. Parear o OBDLink MX+
+## 3. Conectar o adaptador
 
-1. Encaixe o MX+ no conector OBD do XC60 (abaixo do painel, do lado do motorista).
-2. Ligue a ignição (não precisa ligar o motor).
-3. No Windows: Configurações > Bluetooth e dispositivos > Adicionar dispositivo > Bluetooth.
-4. Aperte o botão do MX+ quando o Windows procurar e escolha "OBDLink MX+".
-5. Rode `volvodiag portas`. O MX+ aparece como **"Serial padrão por link Bluetooth"**.
+**Adaptador USB (recomendado):**
+
+1. Ligue o adaptador no USB do notebook. O Windows 10/11 costuma instalar o
+   driver sozinho. Se não instalar, baixe o driver do chip indicado no anúncio:
+   **CH340** (fabricante WCH) ou **FTDI** (site da FTDI).
+2. Rode `volvodiag portas`. O adaptador aparece como "USB-SERIAL CH340" ou
+   "USB Serial Port" com uma porta COM (ex.: COM3).
+
+**Adaptador Bluetooth clássico (ou OBDLink MX+):**
+
+1. Encaixe o adaptador no carro e ligue a ignição.
+2. No Windows: Configurações > Bluetooth e dispositivos > Adicionar dispositivo > Bluetooth.
+   Escolha o adaptador (a senha costuma ser 1234 ou 0000; no MX+, aperte o botão).
+3. Rode `volvodiag portas`. Ele aparece como **"Serial padrão por link Bluetooth"**.
    Se houver duas portas, use a de **saída**. Em caso de dúvida, teste as duas.
+
+O conector OBD do XC60 fica abaixo do painel, do lado do motorista.
+
+## Ao receber o adaptador: teste antes de tudo
+
+Ainda no prazo de devolução, encaixe o adaptador no carro com a **ignição
+desligada** (adaptadores USB recebem energia da tomada OBD, não do USB) e rode:
+
+```powershell
+volvodiag --porta COM3 testar-adaptador
+```
+
+* **APROVADO:** o adaptador aceita todos os comandos que o sistema usa.
+* **REPROVADO:** ele recusou comandos essenciais. É provavelmente um clone
+  incompleto; peça troca ou devolução e mostre o resultado ao vendedor.
+* "Sem resposta do adaptador": confira se ele está bem encaixado no carro e se a
+  porta COM é a certa.
+
+O teste não envia nada que altere o carro. Com a ignição ligada, ele também
+confirma a comunicação com o motor.
+
+Para ver como é uma reprovação sem ter o adaptador:
+`volvodiag --simulador testar-adaptador --simular-clone-ruim`.
 
 ## 4. Primeiros testes no carro (nesta ordem)
 
@@ -73,8 +105,8 @@ painel do carro antes de ser usado.
 
 | Mensagem | O que fazer |
 |---|---|
-| `Não foi possível abrir COMx` | Feche outros programas que usam o MX+ (app OBDLink, Torque) e confira a porta com `volvodiag portas` |
-| `Sem resposta do adaptador` | Ignição desligada, MX+ dormindo (aperte o botão) ou porta errada |
+| `Não foi possível abrir COMx` | Feche outros programas que usam o adaptador (Torque, FORScan, app OBDLink) e confira a porta com `volvodiag portas` |
+| `Sem resposta do adaptador` | Adaptador desencaixado do carro, adaptador Bluetooth dormindo ou porta errada |
 | `não conseguiu se comunicar com o carro` | Ligue a ignição; confira o encaixe no conector |
 | Módulo "sem resposta" em `modulos` | Pode estar na rede MS-CAN (ainda não suportada) ou o endereço precisa ser confirmado |
 | Ver a conversa com o adaptador | Acrescente `--debug` antes do comando |

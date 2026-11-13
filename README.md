@@ -2,7 +2,25 @@
 
 Sistema de diagnóstico **somente leitura** para o Volvo XC60 2014 (plataforma P3,
 motor Drive-E 2.0 turbo, câmbio automático Aisin de 8 marchas), usando um
-adaptador **OBDLink MX+** (Bluetooth) ou outro compatível com ELM327.
+adaptador compatível com ELM327.
+
+## Adaptador recomendado
+
+O mais barato que atende ao sistema: **ELM327 USB com chip PIC18F25K80 e chave
+HS-CAN/MS-CAN** (interface USB FTDI ou CH340).
+
+* **Chip PIC18F25K80:** clones com chip ARM ("v2.1") costumam recusar comandos
+  de que o sistema precisa. O número de versão impresso não é confiável.
+* **USB:** vira porta COM no Windows, sem pareamento. Evite adaptadores
+  "Bluetooth 4.0 / BLE": são feitos para iPhone e normalmente não aparecem como
+  porta COM no Windows. Bluetooth clássico (2.0/3.0) e Wi-Fi também funcionam.
+* **Chave HS/MS-CAN:** dá acesso à rede de média velocidade (pinos 3 e 11), que
+  o sistema ainda não usa, mas que deve abrigar o painel e o climatizador.
+* Adaptadores OBDLink (MX+, SX, EX) também funcionam, mas custam bem mais.
+
+Ao receber, rode `volvodiag --porta COMx testar-adaptador` com o adaptador
+encaixado no carro (ignição desligada) para confirmar, ainda no prazo de
+devolução, que ele aceita todos os comandos usados.
 
 > **Estado:** versão 0.1, testada em simulador e num emulador ELM327
 > independente. **Ainda não foi testada no carro.** Os primeiros testes reais
@@ -12,7 +30,8 @@ adaptador **OBDLink MX+** (Bluetooth) ou outro compatível com ELM327.
 
 | Comando | Para quê |
 |---|---|
-| `volvodiag portas` | Mostra as portas COM (para achar o OBDLink MX+) |
+| `volvodiag portas` | Mostra as portas COM (para achar o adaptador) |
+| `volvodiag testar-adaptador` | Confere se o adaptador aceita todos os comandos usados (aprova ou reprova) |
 | `volvodiag info` | Adaptador, tensão da bateria, VIN, luz de injeção e dados que o carro oferece |
 | `volvodiag dtc` | Lê e explica os códigos de erro: OBD-II do motor e dos módulos Volvo (motor, câmbio, CEM, freios, airbag) |
 | `volvodiag ao-vivo` | Painel em tempo real (rotação, temperaturas, turbo, misturas, tensão...) e gravação no histórico |
@@ -46,8 +65,9 @@ git clone https://github.com/samucaguima/volvo-xc60-diag
 cd volvo-xc60-diag
 py -m pip install .
 volvodiag --simulador info      # teste sem o carro
-volvodiag portas                # depois de parear o OBDLink MX+
-volvodiag --porta COM5 info     # use a porta que aparecer
+volvodiag portas                # depois de conectar o adaptador
+volvodiag --porta COM5 testar-adaptador   # use a porta que aparecer
+volvodiag --porta COM5 info
 ```
 
 ## Como funciona

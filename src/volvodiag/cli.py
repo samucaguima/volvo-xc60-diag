@@ -10,7 +10,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-from . import __version__, dids, modules
+from . import __version__, adapter_check, dids, modules
 from .dtc import describe
 from .elm327 import Elm327, ElmError
 from .health import evaluate
@@ -20,7 +20,7 @@ from .pids import LIVE_PIDS, PIDS
 from .report import build as build_report
 from .safety import BlockedRequest, SafetyGuard
 from .storage import Store
-from .transport import SerialTransport, TcpTransport, TransportError
+from .transport import SerialTransport, TcpTransport, Transport, TransportError
 from .uds import NegativeResponse, NoResponse, UdsClient
 
 UDS_DTC_MODULES = ["ECM", "TCM", "CEM", "BCM", "SRS"]
@@ -28,34 +28,41 @@ LEVEL_MARK = {"ok": "[ ok ]", "atenção": "[ ! ]", "alerta": "[!!!]"}
 
 
 # ---------------------------------------------------------------- conexão
+SIM_BAD_CLONE = ("ATS0", "ATAT1", "ATCRA", "ATFCSH", "ATFCSD", "ATFCSM", "ATPPS", "ATSPB")
+
+
+def open_transport(args: argparse.Namespace) -> tuple[Transport, str]:
+    if args.simulador:
+        from .simulator import SimulatedTransport
+
+        bad = getattr(args, "simular_clone_ruim", False)
+        off = getattr(args, "simular_ignicao_desligada", False)
+        transport = SimulatedTransport(
+            unsupported=SIM_BAD_CLONE if bad else (), ignition_on=not off
+        )
+        print("*** MODO SIMULADOR: dados fictícios, nenhum carro conectado ***\n")
+        return transport, "simulador"
+    if args.tcp:
+        host, _, port = args.tcp.partition(":")
+        return TcpTransport(host, int(port or 35000)), f"tcp {args.tcp}"
+    if args.porta:
+        return SerialTransport(args.porta), args.porta
+    raise SystemExit(
+        "Informe a conexão: --porta COM5 (Bluetooth/USB), --tcp ip:porta ou --simulador.\n"
+        "Para ver as portas disponíveis: volvodiag portas"
+    )
+
+
 class Session:
     def __init__(self, args: argparse.Namespace, allow_clear: bool = False) -> None:
         self.simulated = bool(args.simulador)
-        if args.simulador:
-            from .simulator import SimulatedTransport
-
-            transport = SimulatedTransport()
-            self.label = "simulador"
-        elif args.tcp:
-            host, _, port = args.tcp.partition(":")
-            transport = TcpTransport(host, int(port or 35000))
-            self.label = f"tcp {args.tcp}"
-        elif args.porta:
-            transport = SerialTransport(args.porta)
-            self.label = args.porta
-        else:
-            raise SystemExit(
-                "Informe a conexão: --porta COM5 (Bluetooth/USB), --tcp ip:porta ou --simulador.\n"
-                "Para ver as portas disponíveis: volvodiag portas"
-            )
+        transport, self.label = open_transport(args)
         self.transport = transport
         self.elm = Elm327(transport, SafetyGuard(allow_clear=allow_clear))
         version = self.elm.initialize()
         self.label += f" · {version}"
         self.obd = ObdClient(self.elm)
         self.uds = UdsClient(self.elm)
-        if self.simulated:
-            print("*** MODO SIMULADOR: dados fictícios, nenhum carro conectado ***\n")
 
     def vin(self) -> str | None:
         vin = self.obd.read_vin()
@@ -82,11 +89,42 @@ def cmd_portas(args: argparse.Namespace) -> None:
         raise SystemExit("Instale o pyserial: pip install pyserial") from None
     ports = list(list_ports.comports())
     if not ports:
-        print("Nenhuma porta serial encontrada. Pareie o OBDLink MX+ no Bluetooth do Windows.")
+        print("Nenhuma porta serial encontrada. Ligue o adaptador USB ou pareie o adaptador Bluetooth.")
     for p in ports:
         print(f"{p.device:10} {p.description}")
-    print("\nNo Windows, o OBDLink MX+ aparece como 'Serial padrão por link Bluetooth'.\n"
-          "Se houver duas portas, use a de SAÍDA (outgoing).")
+    print("\nAdaptador USB: aparece como 'USB-SERIAL CH340' ou 'USB Serial Port'.\n"
+          "Adaptador Bluetooth: aparece como 'Serial padrão por link Bluetooth';\n"
+          "se houver duas portas, use a de SAÍDA (outgoing).")
+
+
+def cmd_testar_adaptador(args: argparse.Namespace) -> None:
+    transport, where = open_transport(args)
+    print(f"Testando o adaptador em {where}. Nada é gravado no carro.\n")
+    try:
+        rep = adapter_check.run(transport, test_car=True)
+    finally:
+        transport.close()
+    print(f"Identificação: {rep.identification}\n")
+    print(f"{'Resultado':10} {'Comando':14} Finalidade")
+    for r in rep.results:
+        mark = "ok" if r.ok else ("FALHOU" if r.check.required else "ausente")
+        tag = "" if r.check.required else " (opcional)"
+        print(f"{mark:10} {r.check.cmd:14} {r.check.purpose}{tag}")
+        if not r.ok:
+            print(f"{'':25} resposta: {r.response}")
+    if rep.car_link:
+        print(f"\nComunicação com o carro: {rep.car_link}")
+    print()
+    if rep.approved:
+        print("APROVADO: o adaptador aceita todos os comandos que o volvodiag usa.")
+        optional = [r.check.cmd for r in rep.results if not r.check.required and not r.ok]
+        if optional:
+            print("Recursos opcionais ausentes: " + ", ".join(optional) + ". Não impedem o uso atual.")
+    else:
+        cmds = ", ".join(r.check.cmd for r in rep.missing_required)
+        print(f"REPROVADO: o adaptador recusou {cmds}.")
+        print("Provável clone incompleto (chip ARM / \"v2.1\"). Se estiver no prazo, peça a troca ou devolução.")
+        raise SystemExit(1)
 
 
 def cmd_info(args: argparse.Namespace) -> None:
@@ -370,7 +408,7 @@ def cmd_manutencao(args: argparse.Namespace) -> None:
 
 # ------------------------------------------------------------------ main
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="volvodiag", description="Diagnóstico do Volvo XC60 (P3) pelo OBDLink MX+.")
+    p = argparse.ArgumentParser(prog="volvodiag", description="Diagnóstico do Volvo XC60 (P3) por adaptador ELM327 (USB, Bluetooth ou Wi-Fi).")
     p.add_argument("--version", action="version", version=f"volvodiag {__version__}")
     conn = p.add_argument_group("conexão")
     conn.add_argument("--porta", help="porta serial do adaptador (ex.: COM5)")
@@ -381,6 +419,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="comando", required=True)
 
     sub.add_parser("portas", help="lista as portas seriais (Bluetooth/USB)").set_defaults(fn=cmd_portas)
+    t = sub.add_parser("testar-adaptador", help="confere se o adaptador aceita os comandos usados (ignição pode ficar desligada)")
+    t.add_argument("--simular-clone-ruim", action="store_true", help=argparse.SUPPRESS)
+    t.add_argument("--simular-ignicao-desligada", action="store_true", help=argparse.SUPPRESS)
+    t.set_defaults(fn=cmd_testar_adaptador)
     sub.add_parser("info", help="adaptador, VIN, luz de injeção e dados oferecidos").set_defaults(fn=cmd_info)
     d = sub.add_parser("dtc", help="lê e explica os códigos de erro")
     d.add_argument("--sem-modulos", action="store_true", help="só os códigos OBD-II do motor")

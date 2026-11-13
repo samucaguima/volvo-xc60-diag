@@ -131,8 +131,18 @@ class SimulatedCar:
 class SimulatedTransport:
     """Implementa a mesma interface de ``SerialTransport``."""
 
-    def __init__(self, car: SimulatedCar | None = None) -> None:
+    def __init__(
+        self,
+        car: SimulatedCar | None = None,
+        unsupported: tuple[str, ...] = (),
+        ignition_on: bool = True,
+    ) -> None:
+        """``unsupported``: prefixos de comandos AT recusados com "?", para
+        simular um clone de ELM327 incompleto. ``ignition_on=False`` simula o
+        adaptador encaixado com a ignição desligada."""
         self.car = car or SimulatedCar()
+        self.unsupported = unsupported
+        self.ignition_on = ignition_on
         self.header = 0x7DF
         self.spaces = True
         self._out = ""
@@ -162,25 +172,31 @@ class SimulatedTransport:
 
     def _handle(self, cmd: str) -> str:
         if cmd.startswith("AT") or cmd.startswith("ST"):
+            if self.unsupported and cmd.startswith(self.unsupported):
+                return "?"
             if cmd in ("ATZ", "ATI"):
                 return "ELM327 v1.4b"
             if cmd == "STI":
                 return "STN2255 v5.10.3 (simulador)"
             if cmd == "ATRV":
-                return "14.1V"
+                return "14.1V" if self.ignition_on else "12.5V"
+            if cmd == "ATPPS":
+                return "00:FF F  01:FF F  02:FF F  03:32 F"
             if cmd.startswith("ATSH"):
                 self.header = int(cmd[4:], 16)
                 return "OK"
             if cmd in ("ATS0", "ATS1"):
                 self.spaces = cmd == "ATS1"
                 return "OK"
-            known = ("ATE0", "ATL0", "ATH1", "ATAT1", "ATSP6", "ATAR", "ATCRA",
-                     "ATFCSH", "ATFCSD", "ATFCSM")
+            known = ("ATE0", "ATL0", "ATH1", "ATAT1", "ATSP", "ATAR", "ATCRA",
+                     "ATFCSH", "ATFCSD", "ATFCSM", "ATD")
             return "OK" if cmd.startswith(known) else "?"
         try:
             req = bytes.fromhex(cmd)
         except ValueError:
             return "?"
+        if not self.ignition_on:
+            return "SEARCHING...\rUNABLE TO CONNECT"
         if self.header == 0x7DF:
             resp = self.car.functional(req)
             if not resp:
