@@ -22,9 +22,10 @@ Ao receber, rode `volvodiag --porta COMx testar-adaptador` com o adaptador
 encaixado no carro (ignição desligada) para confirmar, ainda no prazo de
 devolução, que ele aceita todos os comandos usados.
 
-> **Estado:** versão 0.1, testada em simulador e num emulador ELM327
-> independente. **Ainda não foi testada no carro.** Os primeiros testes reais
-> servem para confirmar módulos e dados marcados como "a confirmar".
+> **Estado:** versão 0.3, testada em simulador, num emulador ELM327
+> independente e automaticamente no Windows e no Linux a cada envio ao GitHub.
+> **Ainda não foi testada no carro.** Os primeiros testes reais servem para
+> confirmar módulos e dados marcados como "a confirmar".
 
 ## O que faz
 
